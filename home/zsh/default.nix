@@ -108,9 +108,20 @@ in
       source ${pkgs.zsh-powerlevel10k}/share/zsh/themes/powerlevel10k/powerlevel10k.zsh-theme
 
       # 3. zeno (deferred)
+      # Copy zeno source to writable cache — deno creates node_modules/.deno
+      # adjacent to the script, which fails in read-only /nix/store
       ZSHRC_DIR="$HOME/.config/zsh"
+      _zeno_cache="$HOME/.cache/zsh-plugins/zeno"
+      _zeno_marker="$_zeno_cache/.nix-store-path"
+      if [[ ! -f "$_zeno_marker" ]] || [[ "$(< "$_zeno_marker")" != "${zeno-src}" ]]; then
+        command rm -rf "$_zeno_cache"
+        command mkdir -p "$_zeno_cache"
+        command cp -r ${zeno-src}/. "$_zeno_cache/"
+        command chmod -R u+w "$_zeno_cache"
+        printf '%s' '${zeno-src}' > "$_zeno_marker"
+      fi
       zsh-defer source ${zeno-atinit}
-      zsh-defer source ${zeno-src}/zeno.zsh
+      zsh-defer source "$_zeno_cache/zeno.zsh"
       zsh-defer source ${zeno-atload}
 
       # 4. fzf-tab (deferred)
