@@ -1,20 +1,11 @@
-{ pkgs, ... }:
+{ ... }:
 
 {
-  # Alacritty
-  programs.alacritty = {
-    enable = true;
-  };
+  # Terminal emulator binaries stay in pacman (need host GPU/display access).
+  # Home-manager manages config files only.
+
   xdg.configFile."alacritty/alacritty.toml".source = ./files/alacritty.toml;
-
-  # Foot terminal  
-  programs.foot = {
-    enable = true;
-  };
   xdg.configFile."foot/foot.ini".source = ./files/foot.ini;
-
-  # Wezterm (no programs.wezterm module available in this home-manager version)
-  home.packages = [ pkgs.wezterm ];
   xdg.configFile."wezterm" = {
     source = ./files/wezterm;
     recursive = true;
