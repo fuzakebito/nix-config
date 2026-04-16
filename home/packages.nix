@@ -40,5 +40,8 @@
     gnuplot
     chawan
     libqalculate
+
+    # GUI applications
+    arto # Markdown reader (github:arto-app/Arto)
   ];
 }

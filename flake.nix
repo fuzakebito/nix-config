@@ -14,10 +14,14 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    arto = {
+      url = "github:arto-app/Arto";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    {
+    inputs@{
       nixpkgs,
       home-manager,
       neovim-nightly-overlay,
@@ -30,7 +34,7 @@
         inherit system;
         overlays = [
           neovim-nightly-overlay.overlays.default
-          (import ./overlays)
+          (import ./overlays inputs)
         ];
       };
     in
