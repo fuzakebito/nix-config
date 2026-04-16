@@ -9,6 +9,7 @@
     ./terminals.nix
     ./files.nix
     ./services.nix
+    ./cloudflared.nix
   ];
 
   home.username = "fuzakebito";
