@@ -1,0 +1,8 @@
+keys:
+  - &fuzakebito age1ra554luz67k8ymnlur4hyvgehzd0ayx76nm7grlasaft533gna0qftyqfa
+
+creation_rules:
+  - path_regex: secrets\.yaml$
+    key_groups:
+      - age:
+          - *fuzakebito

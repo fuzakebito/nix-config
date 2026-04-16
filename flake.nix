@@ -10,6 +10,10 @@
     neovim-nightly-overlay = {
       url = "github:nix-community/neovim-nightly-overlay";
     };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -17,6 +21,7 @@
       nixpkgs,
       home-manager,
       neovim-nightly-overlay,
+      sops-nix,
       ...
     }:
     let
@@ -34,7 +39,10 @@
       # Future: add nixosConfigurations here for NixOS hosts
       homeConfigurations."fuzakebito" = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
-        modules = [ ./home ];
+        modules = [
+          ./home
+          sops-nix.homeManagerModules.sops
+        ];
       };
     };
 }
