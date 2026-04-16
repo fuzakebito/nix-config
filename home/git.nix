@@ -3,8 +3,6 @@
 {
   programs.git = {
     enable = true;
-    userName = "HAYASHI Naoya";
-    userEmail = "fuzakebito@fuzake.io";
 
     signing = {
       key = "61DD68A1C8EC3BDC052DF4012CBB3D7C085182D4";
@@ -13,33 +11,38 @@
 
     lfs.enable = true;
 
-    extraConfig = {
+    settings = {
+      user = {
+        name = "HAYASHI Naoya";
+        email = "fuzakebito@fuzake.io";
+      };
+
       color.ui = "auto";
       commit.template = "${config.home.homeDirectory}/.config/git/message";
-    };
 
-    aliases = {
-      l = "log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'";
-      lg = "log --graph --stat --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(dim green)%aD%C(reset)%C(auto)%d%C(reset)%n%C(bold white)%s%C(reset) %C(dim white)- %an <%ae>%C(reset)%n'";
-      fake = "!exit 0";
-      glance = ''
-        !f() { \
-          cd ''${GIT_PREFIX:-.}; \
-          l=$(git l --color=always -n 10 -- ./) || exit 0; \
-          printf "\n\033[1;34m log\033[m\n"; \
-          printf '%s\n' "$l"; \
-          section() { \
-            title="$1"; shift; \
-            [ -n "$@" ] || return; \
-            printf '\n\033[1;34m %s\033[m\n' "$title"; \
-            printf '%s\n' "$@"; \
-          }; \
-          section "stash"     "$(git stash list --color=always --stat --format='%C(bold)%gd%C(reset): %C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(white)%s%C(reset)' | sed '/^$/d')"; \
-          section "staged"    "$(git diff --cached --stat --relative --color=always)"; \
-          section "unstaged"  "$(git diff --stat --relative --color=always)"; \
-          section "untracked" "$(git ls-files --others --exclude-standard)"; \
-        }; f
-      '';
+      alias = {
+        l = "log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'";
+        lg = "log --graph --stat --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(dim green)%aD%C(reset)%C(auto)%d%C(reset)%n%C(bold white)%s%C(reset) %C(dim white)- %an <%ae>%C(reset)%n'";
+        fake = "!exit 0";
+        glance = ''
+          !f() { \
+            cd ''${GIT_PREFIX:-.}; \
+            l=$(git l --color=always -n 10 -- ./) || exit 0; \
+            printf "\n\033[1;34m log\033[m\n"; \
+            printf '%s\n' "$l"; \
+            section() { \
+              title="$1"; shift; \
+              [ -n "$@" ] || return; \
+              printf '\n\033[1;34m %s\033[m\n' "$title"; \
+              printf '%s\n' "$@"; \
+            }; \
+            section "stash"     "$(git stash list --color=always --stat --format='%C(bold)%gd%C(reset): %C(bold blue)%h%C(reset) - %C(bold green)%ar%C(reset) %C(white)%s%C(reset)' | sed '/^$/d')"; \
+            section "staged"    "$(git diff --cached --stat --relative --color=always)"; \
+            section "unstaged"  "$(git diff --stat --relative --color=always)"; \
+            section "untracked" "$(git ls-files --others --exclude-standard)"; \
+          }; f
+        '';
+      };
     };
   };
 
