@@ -158,6 +158,7 @@ in
     MANPAGER = "nvim +Man!";
     PNPM_HOME = "$HOME/.local/share/pnpm";
     DENO_INSTALL = "$HOME/.deno";
+    BUN_INSTALL = "$HOME/.bun";
     LESS_TERMCAP_mb = "$'\\e[1;32m'";
     LESS_TERMCAP_md = "$'\\e[1;32m'";
     LESS_TERMCAP_me = "$'\\e[0m'";
@@ -172,6 +173,7 @@ in
     "$HOME/go/bin"
     "$HOME/.deno/bin"
     "$HOME/.local/share/pnpm"
+    "$HOME/.bun/bin"
     "$HOME/.cargo/bin"
     "$HOME/.local/bin"
   ];

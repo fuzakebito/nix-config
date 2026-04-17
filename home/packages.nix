@@ -24,6 +24,7 @@
 
     # Development tools
     deno
+    bun
     pnpm
     uv
     mise
