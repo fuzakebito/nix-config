@@ -38,7 +38,6 @@ exec_always {
     gsettings set org.gnome.settings-daemon.plugins.xsettings antialiasing 'rgba'
     gsettings set org.gnome.settings-daemon.plugins.xsettings hinting 'none'
 }
-exec_always waybar
 
 gaps inner 6
 default_border pixel 0

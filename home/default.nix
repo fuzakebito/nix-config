@@ -13,6 +13,7 @@
     ./sway
     ./rofi
     ./paru
+    ./waybar
   ];
 
   home.username = "fuzakebito";
