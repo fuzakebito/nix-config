@@ -18,6 +18,10 @@
       url = "github:arto-app/Arto";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    opencode = {
+      url = "github:anomalyco/opencode";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -26,6 +30,7 @@
       home-manager,
       neovim-nightly-overlay,
       sops-nix,
+      opencode,
       ...
     }:
     let
@@ -34,6 +39,7 @@
         inherit system;
         overlays = [
           neovim-nightly-overlay.overlays.default
+          opencode.overlays.default
           (import ./overlays inputs)
         ];
       };
