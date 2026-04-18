@@ -43,16 +43,27 @@
           (import ./overlays inputs)
         ];
       };
+      mkHome =
+        flags:
+        home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          extraSpecialArgs = flags;
+          modules = [
+            ./home
+            sops-nix.homeManagerModules.sops
+          ];
+        };
     in
     {
-      # Standalone home-manager configurations
-      # Future: add nixosConfigurations here for NixOS hosts
-      homeConfigurations."fuzakebito" = home-manager.lib.homeManagerConfiguration {
-        inherit pkgs;
-        modules = [
-          ./home
-          sops-nix.homeManagerModules.sops
-        ];
+      # Standalone home-manager configurations.
+      # Hard cutover to @arch / @nixos suffix — no `.#fuzakebito` alias (DECISION-3).
+      homeConfigurations."fuzakebito@arch" = mkHome {
+        isArch = true;
+        isNixOS = false;
+      };
+      homeConfigurations."fuzakebito@nixos" = mkHome {
+        isArch = false;
+        isNixOS = true;
       };
     };
 }

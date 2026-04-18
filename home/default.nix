@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, isArch, isNixOS, ... }:
 
 {
   imports = [
@@ -10,14 +10,17 @@
     ./files.nix
     ./services.nix
     ./cloudflared.nix
+    ./sway
+    ./rofi
+    ./paru
   ];
 
   home.username = "fuzakebito";
   home.homeDirectory = "/home/fuzakebito";
   home.stateVersion = "25.11";
 
-  # Arch Linux: integrate XDG_DATA_DIRS for non-NixOS
-  targets.genericLinux.enable = true;
+  # Non-NixOS (Arch, etc.): integrate XDG_DATA_DIRS. No-op on NixOS.
+  targets.genericLinux.enable = !isNixOS;
 
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
