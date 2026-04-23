@@ -1,3 +1,4 @@
 # Nix build output symlinks
+/.sisyphus/*
 /result
 /result-*
