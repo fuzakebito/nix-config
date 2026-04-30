@@ -1,6 +1,17 @@
 {
   description = "Nix home-manager configuration for fuzakebito (Arch Linux)";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://nix-community.cachix.org"
+      "https://arto.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "arto.cachix.org-1:yaH0JQomRJTosIcTh2xZPKBEny41D7h6QUePYQzWYqc="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     home-manager = {
@@ -16,7 +27,6 @@
     };
     arto = {
       url = "github:arto-app/Arto";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
     opencode = {
       url = "github:anomalyco/opencode";
