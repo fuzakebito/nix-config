@@ -9,6 +9,7 @@
     ./terminals.nix
     ./files.nix
     ./services.nix
+    ./opencode.nix
     ./sway
     ./rofi
     ./paru

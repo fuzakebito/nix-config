@@ -29,7 +29,6 @@
     uv
     mise
     efm-langserver
-    opencode
 
     # Benchmarking
     hyperfine
