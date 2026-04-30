@@ -9,7 +9,6 @@
     ./terminals.nix
     ./files.nix
     ./services.nix
-    ./cloudflared.nix
     ./sway
     ./rofi
     ./paru
