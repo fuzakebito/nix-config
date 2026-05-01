@@ -59,6 +59,11 @@
           neovim-nightly-overlay.overlays.default
           (import ./overlays inputs)
         ];
+        config.allowUnfreePredicate =
+          pkg:
+          builtins.elem (nixpkgs.lib.getName pkg) [
+            "claude-code"
+          ];
       };
       mkHome =
         flags:

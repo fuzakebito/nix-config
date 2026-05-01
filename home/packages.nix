@@ -29,6 +29,7 @@
     uv
     mise
     efm-langserver
+    claude-code
 
     # Benchmarking
     hyperfine
