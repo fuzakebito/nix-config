@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-19T00:06Z
-**Commit:** 93cf7ba
+**Generated:** 2026-05-01T06:09Z
+**Commit:** 13888e2
 **Branch:** main
 
 ## OVERVIEW
@@ -15,9 +15,9 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 ├── flake.nix            # mkHome factory; only outputs are homeConfigurations
 ├── flake.lock
 ├── home/                # all home-manager modules (see home/AGENTS.md)
-├── overlays/default.nix # local overlay: re-exports `arto` from its flake input
-├── scripts/install-paru.sh  # bootstrap paru on a fresh Arch box
-├── secrets.yaml         # sops+age encrypted
+├── overlays/default.nix # local overlay: re-exports `arto` and `opencode` from their flake inputs
+├── scripts/install-paru.sh  # bootstrap paru on a fresh Arch box (only script in this repo)
+├── secrets.yaml         # sops+age encrypted; only `exa_api_key` is currently consumed
 ├── .sops.yaml           # single age key (fuzakebito)
 └── .sisyphus/           # AI session scratch — NOT part of the config; ignore
 ```
@@ -30,10 +30,13 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 | Add a host variant | `flake.nix` outputs; call `mkHome { isArch=…; isNixOS=…; }` |
 | Add user packages | `home/packages.nix` |
 | Wire a new home module | Create in `home/`, add to imports in `home/default.nix` |
-| Add an Arch-only module | `lib.mkIf isArch { … }` (see `home/paru/default.nix`) |
-| Patch a pkg / add alias | `overlays/default.nix` |
-| Add a secret | Re-encrypt `secrets.yaml` via `sops`, reference in a module |
-| Add a systemd user service | `home/services.nix` or dedicated module (see `cloudflared.nix`) |
+| Add an Arch-only module | `lib.mkIf isArch { … }` (see `home/paru/default.nix` — the only Arch-gated module) |
+| Patch a pkg / add alias / re-export a flake input as a `pkgs` attribute | `overlays/default.nix` |
+| Add a secret | Re-encrypt `secrets.yaml` with `sops`, then reference via `sops.secrets.<name>` in a module |
+| Add a systemd user service (no secrets) | `home/services.nix` (raw `systemd.user.services.*`) |
+| Add a daemon shipped as a HM module | dedicated module file (see `home/ollama.nix` for `services.<name>.enable`) |
+| Add a secret-consuming wrapped binary | dedicated module (see `home/opencode/default.nix` — `symlinkJoin` + `wrapProgram` + `${config.sops.secrets.<name>.path}`) |
+| Vendor an external `flake = false` content tree | `flake.nix` input with `flake = false`, then symlink in a HM module (see `home/opencode/default.nix` for `humanizer-skill` / `mattpocock-skills`) |
 
 ## CONVENTIONS
 

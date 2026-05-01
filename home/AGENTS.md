@@ -6,8 +6,8 @@ All home-manager modules for `fuzakebito@arch` and `fuzakebito@nixos`. Entry poi
 
 Two module shapes, pick based on size:
 
-- **Flat** (`home/<name>.nix`) — single-file, no auxiliary data. Example: `packages.nix`, `git.nix`, `services.nix`.
-- **Subdir** (`home/<name>/default.nix` + `home/<name>/files/`) — when the module deploys raw config files or vendored sources. Example: `zsh/`, `sway/`, `waybar/`, `rofi/`, `paru/`.
+- **Flat** (`home/<name>.nix`) — single-file, no auxiliary data. Example: `packages.nix`, `git.nix`, `services.nix`, `ollama.nix`, `neovim.nix`, `terminals.nix`.
+- **Subdir** (`home/<name>/default.nix` + `home/<name>/files/`) — when the module deploys raw config files or vendored sources. Example: `zsh/`, `sway/`, `waybar/`, `rofi/`, `paru/`, `opencode/`.
 
 `files.nix` is the exception: flat module that deploys multiple unrelated dotfiles from the shared `home/files/` pool (tmux, bashrc, latexmkrc, mise, xremap, bin scripts).
 
@@ -18,8 +18,10 @@ Two module shapes, pick based on size:
 | Add a CLI package | `packages.nix` |
 | Add a shell alias / env var / plugin | `zsh/default.nix` |
 | Add a git alias or change signing key | `git.nix` |
-| Add a systemd user service (shared) | `services.nix` |
-| Add a systemd user service needing secrets | new module (see `cloudflared.nix` as template) |
+| Add a systemd user service (shared, no secrets) | `services.nix` |
+| Enable an upstream HM-module daemon (no service block needed) | dedicated file (see `ollama.nix` for `services.<name>.enable`) |
+| Wrap a binary so it inherits a sops secret at runtime | dedicated subdir module (see `opencode/default.nix` — `symlinkJoin` + `wrapProgram` + `config.sops.secrets.<name>.path`) |
+| Symlink a `flake = false` upstream tree into a HM dotfile path | `opencode/default.nix` (`xdg.configFile."…".source = "${inputs.<input>}"`) |
 | Drop a raw dotfile into `~/.config/<foo>` | `files.nix` + place source under `home/files/` |
 | Change Sway / Waybar / Rofi behavior | `sway/`, `waybar/`, `rofi/` |
 | Change terminal emulator config | `terminals.nix` (configs only; binaries are system-level) |
@@ -44,4 +46,4 @@ Two module shapes, pick based on size:
 - **Do not** add a new top-level directory inside `home/`. Module namespace is flat by design (Q7).
 - **Do not** auto-import modules (`builtins.readDir ./.`). Explicit `imports = [ … ]` only — it doubles as the module inventory.
 - **Do not** use `lib.mkDefault` for anything the user will actually rely on — both hosts share this tree, there is no downstream override layer. Use direct assignment or `lib.mkForce`.
-- **Do not** read secrets from plain files. All secrets flow through `sops.secrets.*` with `%r`/`%t` runtime paths (see `cloudflared.nix`).
+- **Do not** read secrets from plain files. All secrets flow through `sops.secrets.*`; reference the runtime path via `config.sops.secrets.<name>.path` (see `opencode/default.nix` for the wrapped-binary pattern).
