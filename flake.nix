@@ -1,5 +1,5 @@
 {
-  description = "Nix home-manager configuration for fuzakebito (Arch Linux)";
+  description = "Nix home-manager configuration for fuzakebito (Arch Linux / NixOS / generic Linux)";
 
   nixConfig = {
     extra-substituters = [
@@ -73,7 +73,7 @@
     in
     {
       # Standalone home-manager configurations.
-      # Hard cutover to @arch / @nixos suffix — no `.#fuzakebito` alias (DECISION-3).
+      # Hard cutover to @arch / @nixos / @linux suffix — no `.#fuzakebito` alias (DECISION-3).
       homeConfigurations."fuzakebito@arch" = mkHome {
         isArch = true;
         isNixOS = false;
@@ -81,6 +81,10 @@
       homeConfigurations."fuzakebito@nixos" = mkHome {
         isArch = false;
         isNixOS = true;
+      };
+      homeConfigurations."fuzakebito@linux" = mkHome {
+        isArch = false;
+        isNixOS = false;
       };
     };
 }
