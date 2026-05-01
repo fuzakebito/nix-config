@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-05-01T06:09Z
-**Commit:** 13888e2
+**Generated:** 2026-05-01T06:43Z
+**Commit:** 9e9a49d
 **Branch:** main
 
 ## OVERVIEW
@@ -35,7 +35,7 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 | Add a secret | Re-encrypt `secrets.yaml` with `sops`, then reference via `sops.secrets.<name>` in a module |
 | Add a systemd user service (no secrets) | `home/services.nix` (raw `systemd.user.services.*`) |
 | Add a daemon shipped as a HM module | dedicated module file (see `home/ollama.nix` for `services.<name>.enable`) |
-| Add a secret-consuming wrapped binary | dedicated module (see `home/opencode/default.nix` — `symlinkJoin` + `wrapProgram` + `${config.sops.secrets.<name>.path}`) |
+| Bake a sops secret path into a generated config | dedicated module (see `home/opencode/default.nix` — `pkgs.formats.json` + `${config.sops.secrets.<name>.path}`) |
 | Vendor an external `flake = false` content tree | `flake.nix` input with `flake = false`, then symlink in a HM module (see `home/opencode/default.nix` for `humanizer-skill` / `mattpocock-skills`) |
 
 ## CONVENTIONS

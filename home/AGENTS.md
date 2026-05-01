@@ -20,7 +20,7 @@ Two module shapes, pick based on size:
 | Add a git alias or change signing key | `git.nix` |
 | Add a systemd user service (shared, no secrets) | `services.nix` |
 | Enable an upstream HM-module daemon (no service block needed) | dedicated file (see `ollama.nix` for `services.<name>.enable`) |
-| Wrap a binary so it inherits a sops secret at runtime | dedicated subdir module (see `opencode/default.nix` — `symlinkJoin` + `wrapProgram` + `config.sops.secrets.<name>.path`) |
+| Bake a sops secret path into a generated config | dedicated subdir module (see `opencode/default.nix` — `pkgs.formats.json` + `config.sops.secrets.<name>.path`) |
 | Symlink a `flake = false` upstream tree into a HM dotfile path | `opencode/default.nix` (`xdg.configFile."…".source = "${inputs.<input>}"`) |
 | Drop a raw dotfile into `~/.config/<foo>` | `files.nix` + place source under `home/files/` |
 | Change Sway / Waybar / Rofi behavior | `sway/`, `waybar/`, `rofi/` |
@@ -46,4 +46,4 @@ Two module shapes, pick based on size:
 - **Do not** add a new top-level directory inside `home/`. Module namespace is flat by design (Q7).
 - **Do not** auto-import modules (`builtins.readDir ./.`). Explicit `imports = [ … ]` only — it doubles as the module inventory.
 - **Do not** use `lib.mkDefault` for anything the user will actually rely on — both hosts share this tree, there is no downstream override layer. Use direct assignment or `lib.mkForce`.
-- **Do not** read secrets from plain files. All secrets flow through `sops.secrets.*`; reference the runtime path via `config.sops.secrets.<name>.path` (see `opencode/default.nix` for the wrapped-binary pattern).
+- **Do not** read secrets from plain files. All secrets flow through `sops.secrets.*`; reference the runtime path via `config.sops.secrets.<name>.path` (see `opencode/default.nix`).
