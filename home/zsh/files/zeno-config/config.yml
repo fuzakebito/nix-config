@@ -52,6 +52,9 @@ snippets:
   - name: yazi
     keyword: yz
     snippet: yazi
+  - name: abbr opencode
+    keyword: oc
+    snippet: opencode
   - name: udisksctl mount
     keyword: um
     snippet: udisksctl mount -b
