@@ -31,6 +31,16 @@
     opencode = {
       url = "github:anomalyco/opencode";
     };
+    # Upstream-pinned skill sources for ~/.config/opencode/skills/.
+    # Both are plain content trees (`flake = false`); home/opencode/ symlinks them.
+    humanizer-skill = {
+      url = "github:blader/humanizer";
+      flake = false;
+    };
+    mattpocock-skills = {
+      url = "github:mattpocock/skills";
+      flake = false;
+    };
   };
 
   outputs =
@@ -54,7 +64,7 @@
         flags:
         home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
-          extraSpecialArgs = flags;
+          extraSpecialArgs = flags // { inherit inputs; };
           modules = [
             ./home
             sops-nix.homeManagerModules.sops

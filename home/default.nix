@@ -10,7 +10,7 @@
     ./files.nix
     ./services.nix
     ./ollama.nix
-    ./opencode.nix
+    ./opencode
     ./sway
     ./rofi
     ./paru
