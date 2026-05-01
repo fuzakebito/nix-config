@@ -1,5 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
+  "disabled_mcps": [
+    "websearch"
+  ],
   "agents": {
     "sisyphus": {
       "model": "anthropic/claude-opus-4-7",

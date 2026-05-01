@@ -1,15 +1,57 @@
 { config, pkgs, inputs, ... }:
 
 let
-  opencode-wrapped = pkgs.symlinkJoin {
-    name = "opencode-wrapped-${pkgs.opencode.version or "unknown"}";
-    paths = [ pkgs.opencode ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/opencode \
-        --run 'export EXA_API_KEY="$(${pkgs.coreutils}/bin/cat ${config.sops.secrets.exa_api_key.path})"'
-    '';
-    inherit (pkgs.opencode) meta;
+  # opencode.json is generated so the EXA API key path (a sops secret) can be
+  # baked into the mcp.exa block. opencode resolves "{file:/abs/path}" at
+  # runtime, so no env-injection wrapper around the opencode binary is needed
+  # — exa-mcp-server gets EXA_API_KEY straight from the decrypted sops file.
+  opencodeConfig = (pkgs.formats.json { }).generate "opencode.json" {
+    "$schema" = "https://opencode.ai/config.json";
+    plugin = [
+      "oh-my-openagent@latest"
+      "opencode-claude-auth@latest"
+    ];
+    lsp = {
+      efm-langserver = {
+        command = [ "efm-langserver" ];
+        extensions = [ ".md" ];
+        initialization = {
+          documentFormatting = true;
+          documentRangeFormatting = true;
+          hover = true;
+          documentSymbol = true;
+          codeAction = true;
+          completion = true;
+        };
+      };
+    };
+    agent = { };
+    provider = {
+      ollama = {
+        npm = "@ai-sdk/openai-compatible";
+        name = "Ollama (local)";
+        options = {
+          baseURL = "http://localhost:11434/v1";
+        };
+        models = {
+          "gemma4:e4b" = {
+            name = "gemma4:e4b";
+          };
+        };
+      };
+    };
+    # Replaces oh-my-openagent's bundled `websearch` MCP (disabled in
+    # oh-my-openagent.json). Key is read from the sops-managed file at runtime.
+    mcp = {
+      exa = {
+        type = "local";
+        command = [ "bunx" "exa-mcp-server" ];
+        enabled = true;
+        environment = {
+          EXA_API_KEY = "{file:${config.sops.secrets.exa_api_key.path}}";
+        };
+      };
+    };
   };
 in
 {
@@ -19,7 +61,7 @@ in
     secrets.exa_api_key = { };
   };
 
-  home.packages = [ opencode-wrapped ];
+  home.packages = [ pkgs.opencode ];
 
   # Declarative ~/.config/opencode/ tree.
   # Intentionally NOT managed (tool-managed at runtime):
@@ -29,7 +71,7 @@ in
   # Migrations to oh-my-openagent.json must be ported by hand into the
   # vendored copy under ./files/ instead of being applied in place.
   xdg.configFile = {
-    "opencode/opencode.json".source = ./files/opencode.json;
+    "opencode/opencode.json".source = opencodeConfig;
     "opencode/oh-my-openagent.json".source = ./files/oh-my-openagent.json;
 
     # Custom slash commands. recursive=true so opencode can drop new
