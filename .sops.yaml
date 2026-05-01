@@ -1,8 +1,10 @@
 keys:
-  - &fuzakebito age1ra554luz67k8ymnlur4hyvgehzd0ayx76nm7grlasaft533gna0qftyqfa
+  - &SylcArch_1 age1ra554luz67k8ymnlur4hyvgehzd0ayx76nm7grlasaft533gna0qftyqfa
+  - &SylcAlma_1 age1wpglu2r2dhzz8hdkeszxuxlqq45326duyus74jcnfmj0ztgmf5kq9etufj
 
 creation_rules:
   - path_regex: secrets\.yaml$
     key_groups:
       - age:
-          - *fuzakebito
+          - *SylcArch_1
+          - *SylcAlma_1
