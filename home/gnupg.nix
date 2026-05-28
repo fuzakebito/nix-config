@@ -19,11 +19,30 @@
     gpg_ownertrust = { };
   };
 
-  # `gpg --import` and `gpg --import-ownertrust` are both idempotent:
-  # re-running on a populated keyring updates trust/expirations as needed
-  # and is a no-op for already-known material.
-  home.activation.importGpgKeys = lib.hm.dag.entryAfter [ "sops-nix" ] ''
-    run ${pkgs.gnupg}/bin/gpg --batch --import "${config.sops.secrets.gpg_subkeys.path}"
-    run ${pkgs.gnupg}/bin/gpg --import-ownertrust "${config.sops.secrets.gpg_ownertrust.path}"
+  # In home-manager mode sops-nix decrypts secrets from a user systemd service.
+  # The activation DAG node named `sops-nix` only restarts that service, so an
+  # activation hook ordered after it can still race the actual secret creation.
+  # ExecStartPost runs inside the one-shot service after decryption has finished.
+  # `gpg --import` and `gpg --import-ownertrust` are both idempotent: re-running
+  # on a populated keyring updates trust/expirations as needed and is a no-op for
+  # already-known material.
+  systemd.user.services.sops-nix.Service.ExecStartPost = [
+    "${pkgs.gnupg}/bin/gpg --homedir ${config.home.homeDirectory}/.gnupg --batch --import ${config.sops.secrets.gpg_subkeys.path}"
+    "${pkgs.gnupg}/bin/gpg --homedir ${config.home.homeDirectory}/.gnupg --import-ownertrust ${config.sops.secrets.gpg_ownertrust.path}"
+  ];
+
+  # sops-nix's own activation hook may restart the previous generation's unit
+  # before reloadSystemd installs the new one. Restart it again after reload so
+  # the updated service (including ExecStartPost above) runs during this switch.
+  home.activation.restartSopsNixForGpg = lib.hm.dag.entryAfter [ "reloadSystemd" ] ''
+    systemdStatus=$(${pkgs.systemd}/bin/systemctl --user is-system-running 2>&1 || true)
+
+    if [[ $systemdStatus == 'running' || $systemdStatus == 'degraded' ]]; then
+      run ${pkgs.systemd}/bin/systemctl restart --user sops-nix
+    else
+      echo "User systemd daemon not running. GPG keys will import when sops-nix.service starts."
+    fi
+
+    unset systemdStatus
   '';
 }
