@@ -5,6 +5,7 @@
     ./packages.nix
     ./git.nix
     ./ssh.nix
+    ./gnupg.nix
     ./zsh
     ./neovim.nix
     ./terminals.nix
