@@ -15,7 +15,7 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 ├── flake.nix            # mkHome factory; only outputs are homeConfigurations
 ├── flake.lock
 ├── home/                # all home-manager modules (see home/AGENTS.md)
-├── overlays/default.nix # local overlay: re-exports `arto` and `opencode` from their flake inputs
+├── overlays/default.nix # local overlay: re-exports `arto` from its flake input
 ├── scripts/install-paru.sh  # bootstrap paru on a fresh Arch box (only script in this repo)
 ├── secrets.yaml         # sops+age encrypted; only `exa_api_key` is currently consumed
 ├── .sops.yaml           # single age key (fuzakebito)
@@ -57,7 +57,7 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 ## UNIQUE STYLES
 
 - **`mkHome` factory in `flake.nix`** — one `homeManagerConfiguration` call, two outputs differing only by specialArgs flags. Add a host = one new line.
-- **Overlay stack, applied globally at `pkgs` construction** (not per-host): `neovim-nightly` → `opencode` → local `./overlays`. Per-host overlay swaps are not supported; add to the local overlay.
+- **Overlay stack, applied globally at `pkgs` construction** (not per-host): `neovim-nightly` → local `./overlays`. Per-host overlay swaps are not supported; add to the local overlay.
 - **sops-nix wired at the home-manager level** (`sops-nix.homeManagerModules.sops` in `flake.nix`). Age key path is `~/.config/sops/age/keys.txt`, auto-generated on first switch. All secrets live in the single top-level `secrets.yaml`.
 
 ## COMMANDS

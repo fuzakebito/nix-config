@@ -28,9 +28,6 @@
     arto = {
       url = "github:arto-app/Arto";
     };
-    opencode = {
-      url = "github:anomalyco/opencode";
-    };
     # Upstream-pinned skill sources for ~/.config/opencode/skills/.
     # Both are plain content trees (`flake = false`); home/opencode/ symlinks them.
     humanizer-skill = {

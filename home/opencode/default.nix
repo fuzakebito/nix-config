@@ -61,7 +61,9 @@ in
     secrets.exa_api_key = { };
   };
 
-  home.packages = [ pkgs.opencode ];
+  # The opencode binary itself is intentionally NOT nix-managed — run it via
+  # `bunx opencode-ai@latest` (nix-pinned builds lagged upstream / caused
+  # friction). home-manager owns only the ~/.config/opencode/ tree below.
 
   # Declarative ~/.config/opencode/ tree.
   # Intentionally NOT managed (tool-managed at runtime):
