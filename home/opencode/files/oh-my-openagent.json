@@ -5,7 +5,7 @@
   ],
   "agents": {
     "sisyphus": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "hephaestus": {
@@ -41,17 +41,17 @@
       "variant": "xhigh"
     },
     "atlas": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "medium"
     },
     "sisyphus-junior": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "medium"
     }
   },
   "categories": {
     "visual-engineering": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "ultrabrain": {
@@ -80,7 +80,7 @@
       "variant": "xhigh"
     },
     "brain-2": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "brain-3": {
