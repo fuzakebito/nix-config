@@ -29,8 +29,8 @@
       "variant": "medium"
     },
     "prometheus": {
-      "model": "openai/gpt-5.5",
-      "variant": "xhigh"
+      "model": "anthropic/claude-opus-4-8",
+      "variant": "max"
     },
     "metis": {
       "model": "openai/gpt-5.5",
