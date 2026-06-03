@@ -30,6 +30,7 @@
     mise
     efm-langserver
     claude-code
+    rtk # CLI proxy that compresses command output for LLMs (opencode plugin: home/opencode/)
 
     # Benchmarking
     hyperfine

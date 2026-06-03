@@ -1,6 +1,20 @@
 { config, pkgs, inputs, ... }:
 
 let
+  # RTK token-compression plugin, generated FROM the pinned `pkgs.rtk` binary
+  # (not vendored, not a separate flake input) so the plugin always matches the
+  # installed rtk version and auto-updates whenever nixpkgs bumps `rtk` — zero
+  # manual sync. `rtk init` writes exactly one file offline; we extract it.
+  # --hook-only: plugin only, no RTK.md. Telemetry is opt-in (off) — pinned off
+  # anyway for the sandboxed build.
+  rtkOpencodePlugin = pkgs.runCommand "rtk-opencode-plugin" { } ''
+    export HOME="$TMPDIR"
+    export XDG_CONFIG_HOME="$TMPDIR/.config"
+    export RTK_TELEMETRY_DISABLED=1
+    ${pkgs.rtk}/bin/rtk init -g --opencode --hook-only --auto-patch
+    install -Dm644 "$XDG_CONFIG_HOME/opencode/plugins/rtk.ts" "$out"
+  '';
+
   # opencode.json is generated so the EXA API key path (a sops secret) can be
   # baked into the mcp.exa block. opencode resolves "{file:/abs/path}" at
   # runtime, so no env-injection wrapper around the opencode binary is needed
@@ -85,6 +99,12 @@ in
       source = ./files/commands;
       recursive = true;
     };
+
+    # RTK token-compression plugin (generated above from pkgs.rtk). Single-file
+    # symlink (not a dir symlink) so opencode can still load other local plugins
+    # alongside it. The `rtk` binary comes from home/packages.nix; the plugin
+    # shells out to it via PATH.
+    "opencode/plugins/rtk.ts".source = rtkOpencodePlugin;
 
     # External skills, pinned via flake inputs (see flake.nix).
     # Directory-level symlinks: tool may add other skills/* entries alongside,
