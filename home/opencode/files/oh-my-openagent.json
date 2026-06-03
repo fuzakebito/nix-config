@@ -17,11 +17,11 @@
       "variant": "xhigh"
     },
     "librarian": {
-      "model": "openai/gpt-5.4-mini-fast",
+      "model": "openai/gpt-5.5",
       "variant": "medium"
     },
     "explore": {
-      "model": "openai/gpt-5.4-mini-fast",
+      "model": "openai/gpt-5.5",
       "variant": "medium"
     },
     "multimodal-looker": {
