@@ -24,6 +24,7 @@ let
     plugin = [
       "oh-my-openagent@latest"
       "opencode-claude-auth@latest"
+      "@tarquinen/opencode-dcp@latest"
     ];
     compaction = {
       auto = false;
