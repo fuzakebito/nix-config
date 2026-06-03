@@ -11,6 +11,9 @@ let
       "oh-my-openagent@latest"
       "opencode-claude-auth@latest"
     ];
+    compaction = {
+      auto = false;
+    };
     lsp = {
       efm-langserver = {
         command = [ "efm-langserver" ];
