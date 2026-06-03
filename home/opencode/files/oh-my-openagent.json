@@ -3,6 +3,10 @@
   "disabled_mcps": [
     "websearch"
   ],
+  "disabled_hooks": [
+    "context-window-monitor",
+    "keyword-detector"
+  ],
   "agents": {
     "sisyphus": {
       "model": "anthropic/claude-opus-4-8",
