@@ -94,6 +94,11 @@ in
     "opencode/opencode.json".source = opencodeConfig;
     "opencode/oh-my-openagent.json".source = ./files/oh-my-openagent.json;
 
+    # DCP (dynamic-context-pruning) plugin config. Static vendored copy — no
+    # secrets, no generation. JSONC (comments + trailing layout preserved
+    # verbatim); DCP reads it directly from ~/.config/opencode/dcp.jsonc.
+    "opencode/dcp.jsonc".source = ./files/dcp.jsonc;
+
     # Custom slash commands. recursive=true so opencode can drop new
     # commands alongside without colliding with the declared ones.
     "opencode/commands" = {

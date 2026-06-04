@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+    // プラグインを有効または無効にする
+    "enabled": true,
+
+    // npmでインストールされたDCPに新しいlatest版があれば自動更新する
+    // バージョン固定されたプラグイン仕様は更新されない
+    "autoUpdate": true,
+
+    // ~/.config/opencode/logs/dcp/ にデバッグログを出力する
+    "debug": false,
+
+    // 剪定（プルーニング）通知の表示方法: "off", "minimal", "detailed"
+    "pruneNotification": "detailed",
+
+    // 通知の種類: "chat"（会話内）または "toast"（システム通知）
+    "pruneNotificationType": "chat",
+
+    // スラッシュコマンド設定
+    "commands": {
+        "enabled": true,
+
+        // コマンド（例: /dcp sweep）による剪定から保護する追加ツール
+        "protectedTools": []
+    },
+
+    // 手動モード:
+    // 自律的なコンテキスト管理を無効化し、
+    // /dcp コマンドで明示的に実行した場合のみツールを動かす
+    "manualMode": {
+        "enabled": false,
+
+        // true の場合、手動モードでも自動クリーンアップ
+        // （重複除去、エラー削除）は実行される
+        "automaticStrategies": true
+    },
+
+    // ツール呼び出し後、指定ターン数の間は剪定対象から保護する
+    "turnProtection": {
+        "enabled": false,
+        "turns": 4
+    },
+
+    // 実験的機能
+    "experimental": {
+        // サブエージェントセッションでもDCP処理を許可する
+        "allowSubAgents": false,
+
+        // dcp-prompts 配下のユーザー編集可能なプロンプト上書きを有効化する
+        // false の場合（既定値）、上書きファイルやディレクトリは無視される
+        "customPrompts": false
+    },
+
+    // ファイル操作を剪定から保護するglobパターン
+    // tool の parameters.filePath に対してマッチする
+    "protectedFilePatterns": [],
+
+    // コンテキスト圧縮機能の設定
+    "compress": {
+        // 圧縮モード:
+        // "range" = 範囲を要約ブロックに圧縮
+        // "message" = 個別メッセージ圧縮（実験的）
+        "mode": "range",
+
+        // 権限モード:
+        // "allow" = 確認なしで許可
+        // "ask" = ユーザーに確認
+        // "deny" = ツールを登録しない
+        "permission": "allow",
+
+        // 圧縮内容をチャット通知として表示する
+        "showCompression": false,
+
+        // 要約トークンを実効コンテキスト上限に加算する
+        "summaryBuffer": true,
+
+        // ソフト上限値
+        // これを超えると強い圧縮促進通知が発生しやすくなる
+        "maxContextLimit": "60%",
+
+        // ソフト下限値
+        // これ未満では圧縮リマインダーを出さない
+        "minContextLimit": "40%",
+
+        // モデルごとの maxContextLimit 上書き設定（任意）
+        // "modelMaxLimits": {
+        //     "openai/gpt-5.3-codex": 120000,
+        //     "anthropic/claude-sonnet-4.6": "80%"
+        // },
+
+        // モデルごとの minContextLimit 上書き設定（任意）
+        // "modelMinLimits": {
+        //     "openai/gpt-5.3-codex": 50000,
+        //     "anthropic/claude-sonnet-4.6": "25%"
+        // },
+
+        // コンテキスト制限通知の発生頻度
+        // 1=毎回、5=5回に1回
+        "nudgeFrequency": 5,
+
+        // 最後のユーザーメッセージ以降、
+        // この回数以上やり取りが続くと圧縮リマインダーを出し始める
+        "iterationNudgeThreshold": 15,
+
+        // ユーザーメッセージ後の圧縮促進の強さ
+        // "strong" = 強め
+        // "soft" = 弱め
+        "nudgeForce": "soft",
+
+        // 圧縮時に出力内容を保持するツール名
+        "protectedTools": [],
+
+        // <protect>...</protect> で囲まれた内容を保護する
+        "protectTags": false,
+
+        // ユーザーメッセージを圧縮対象から除外する
+        // 大量に貼り付けたプロンプトも残り続けるため注意
+        "protectUserMessages": false
+    },
+
+    // 自動剪定戦略
+    "strategies": {
+
+        // 同一ツール・同一引数の重複呼び出しを削除する
+        "deduplication": {
+            "enabled": true,
+
+            // 保護対象ツール
+            "protectedTools": []
+        },
+
+        // エラーになったツール入力を一定ターン後に削除する
+        "purgeErrors": {
+            "enabled": true,
+
+            // エラー入力を削除するまでのターン数
+            "turns": 4,
+
+            // 保護対象ツール
+            "protectedTools": []
+        }
+    }
+}
