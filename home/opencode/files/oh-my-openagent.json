@@ -58,6 +58,18 @@
       "model": "openai/gpt-5.5",
       "variant": "xhigh"
     },
+    "unspecified-low": {
+      "model": "openai/gpt-5.5",
+      "variant": "low"
+    },
+    "unspecified-high": {
+      "model": "anthropic/claude-opus-4-8",
+      "variant": "max"
+    },
+    "unspecified-extreme": {
+      "model": "anthropic/claude-fable-5",
+      "variant": "max"
+    },
     "deep": {
       "model": "openai/gpt-5.5",
       "variant": "xhigh"
