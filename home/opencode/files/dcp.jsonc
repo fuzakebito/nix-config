@@ -76,11 +76,11 @@
 
         // ソフト上限値
         // これを超えると強い圧縮促進通知が発生しやすくなる
-        "maxContextLimit": "60%",
+        "maxContextLimit": "50%",
 
         // ソフト下限値
         // これ未満では圧縮リマインダーを出さない
-        "minContextLimit": "40%",
+        "minContextLimit": "30%",
 
         // モデルごとの maxContextLimit 上書き設定（任意）
         // "modelMaxLimits": {
