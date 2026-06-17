@@ -17,27 +17,25 @@
       "variant": "medium"
     },
     "oracle": {
-      "model": "anthropic/claude-fable-5",
-      "variant": "max"
+      "model": "openai/gpt-5.5",
+      "variant": "xhigh"
     },
     "librarian": {
-      "model": "openai/gpt-5.5",
-      "variant": "low"
+      "model": "zai-coding-plan/glm-5.2"
     },
     "explore": {
-      "model": "openai/gpt-5.5",
-      "variant": "low"
+      "model": "zai-coding-plan/glm-5.2"
     },
     "multimodal-looker": {
       "model": "openai/gpt-5.5",
       "variant": "medium"
     },
     "prometheus": {
-      "model": "anthropic/claude-fable-5",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "metis": {
-      "model": "anthropic/claude-fable-5",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "momus": {
@@ -45,12 +43,10 @@
       "variant": "xhigh"
     },
     "atlas": {
-      "model": "openai/gpt-5.5",
-      "variant": "medium"
+      "model": "zai-coding-plan/glm-5.2"
     },
     "sisyphus-junior": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "medium"
+      "model": "zai-coding-plan/glm-5.2"
     }
   },
   "categories": {
@@ -63,20 +59,18 @@
       "variant": "low"
     },
     "unspecified-high": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "max"
+      "model": "openai/gpt-5.5",
+      "variant": "xhigh"
     },
-    "unspecified-extreme": {
-      "model": "anthropic/claude-fable-5",
-      "variant": "max"
+    "quick": {
+      "model": "zai-coding-plan/glm-5.2"
     },
     "deep": {
       "model": "openai/gpt-5.5",
       "variant": "xhigh"
     },
     "coding": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "medium"
+      "model": "zai-coding-plan/glm-5.2"
     },
     "writing": {
       "model": "anthropic/claude-opus-4-8",
