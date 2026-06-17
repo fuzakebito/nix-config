@@ -19,6 +19,16 @@
     gpg_ownertrust = { };
   };
 
+  # Keep passphrases cached for a full work session while still forcing a
+  # re-prompt after one day at most. The SSH variants cover authentication
+  # subkeys when gpg-agent is used as an ssh-agent.
+  home.file.".gnupg/gpg-agent.conf".text = ''
+    default-cache-ttl 28800
+    max-cache-ttl 86400
+    default-cache-ttl-ssh 28800
+    max-cache-ttl-ssh 86400
+  '';
+
   # In home-manager mode sops-nix decrypts secrets from a user systemd service.
   # The activation DAG node named `sops-nix` only restarts that service, so an
   # activation hook ordered after it can still race the actual secret creation.
