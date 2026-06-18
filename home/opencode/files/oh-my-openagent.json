@@ -81,12 +81,11 @@
       "variant": "xhigh"
     },
     "brain-2": {
-      "model": "anthropic/claude-fable-5",
+      "model": "anthropic/claude-opus-4-8",
       "variant": "max"
     },
     "brain-3": {
-      "model": "openrouter/google/gemini-3.1-pro-preview",
-      "variant": "xhigh"
+      "model": "zai-coding-plan/glm-5.2"
     }
   },
   "tmux": {
