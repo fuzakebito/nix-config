@@ -1,6 +1,7 @@
 keys:
   - &SylcArch_1 age1ra554luz67k8ymnlur4hyvgehzd0ayx76nm7grlasaft533gna0qftyqfa
   - &SylcAlma_1 age1wpglu2r2dhzz8hdkeszxuxlqq45326duyus74jcnfmj0ztgmf5kq9etufj
+  - &sun age15xd0z72v3674jaz09vrgfmt337dsmp424df99u9xgpcaf538ua5sxkqqua
 
 creation_rules:
   - path_regex: secrets\.yaml$
@@ -8,3 +9,4 @@ creation_rules:
       - age:
           - *SylcArch_1
           - *SylcAlma_1
+          - *sun
