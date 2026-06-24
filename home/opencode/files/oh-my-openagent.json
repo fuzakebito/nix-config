@@ -10,7 +10,7 @@
   "agents": {
     "sisyphus": {
       "model": "anthropic/claude-opus-4-8",
-      "variant": "max"
+      "variant": "high"
     },
     "hephaestus": {
       "model": "openai/gpt-5.5",
@@ -32,11 +32,11 @@
     },
     "prometheus": {
       "model": "anthropic/claude-opus-4-8",
-      "variant": "max"
+      "variant": "xhigh"
     },
     "metis": {
       "model": "anthropic/claude-opus-4-8",
-      "variant": "max"
+      "variant": "xhigh"
     },
     "momus": {
       "model": "openai/gpt-5.5",
@@ -82,7 +82,7 @@
     },
     "brain-2": {
       "model": "anthropic/claude-opus-4-8",
-      "variant": "max"
+      "variant": "xhigh"
     },
     "brain-3": {
       "model": "zai-coding-plan/glm-5.2"
