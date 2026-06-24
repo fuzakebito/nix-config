@@ -46,7 +46,8 @@
       "model": "zai-coding-plan/glm-5.2"
     },
     "sisyphus-junior": {
-      "model": "zai-coding-plan/glm-5.2"
+      "model": "anthropic/claude-opus-4-8",
+      "variant": "medium"
     }
   },
   "categories": {
@@ -70,7 +71,8 @@
       "variant": "xhigh"
     },
     "coding": {
-      "model": "zai-coding-plan/glm-5.2"
+      "model": "anthropic/claude-opus-4-8",
+      "variant": "medium"
     },
     "writing": {
       "model": "anthropic/claude-opus-4-8",
