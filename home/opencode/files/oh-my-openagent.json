@@ -17,8 +17,8 @@
       "variant": "medium"
     },
     "oracle": {
-      "model": "openai/gpt-5.5",
-      "variant": "xhigh"
+      "model": "anthropic/claude-fable-5",
+      "variant": "max"
     },
     "librarian": {
       "model": "zai-coding-plan/glm-5.2"
@@ -31,12 +31,12 @@
       "variant": "medium"
     },
     "prometheus": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "xhigh"
+      "model": "anthropic/claude-fable-5",
+      "variant": "high"
     },
     "metis": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "xhigh"
+      "model": "anthropic/claude-fable-5",
+      "variant": "high"
     },
     "momus": {
       "model": "openai/gpt-5.5",
@@ -55,13 +55,17 @@
       "model": "openai/gpt-5.5",
       "variant": "xhigh"
     },
+    "ultrabrain": {
+      "model": "anthropic/claude-fable-5",
+      "variant": "xhigh"
+    },
     "unspecified-low": {
       "model": "openai/gpt-5.5",
       "variant": "low"
     },
     "unspecified-high": {
-      "model": "openai/gpt-5.5",
-      "variant": "xhigh"
+      "model": "anthropic/claude-fable-5",
+      "variant": "high"
     },
     "quick": {
       "model": "zai-coding-plan/glm-5.2"
@@ -71,12 +75,12 @@
       "variant": "xhigh"
     },
     "coding": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-fable-5",
       "variant": "medium"
     },
     "writing": {
-      "model": "anthropic/claude-opus-4-8",
-      "variant": "medium"
+      "model": "anthropic/claude-fable-5",
+      "variant": "low"
     },
     "brain-1": {
       "model": "openai/gpt-5.5",
