@@ -97,6 +97,10 @@
     "brain-3": {
       "model": "openrouter/x-ai/grok-4.5",
       "variant": "high"
+    },
+    "brain-4": {
+      "model": "openrouter/moonshotai/kimi-k3",
+      "variant": "max"
     }
   },
   "tmux": {
