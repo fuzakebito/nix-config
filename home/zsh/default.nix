@@ -158,6 +158,7 @@ in
     MANPAGER = "nvim +Man!";
     PNPM_HOME = "$HOME/.local/share/pnpm";
     DENO_INSTALL = "$HOME/.deno";
+    DENO_SQLITE_PATH = "${lib.getLib pkgs.sqlite}/lib/libsqlite3.so";
     BUN_INSTALL = "$HOME/.bun";
     LESS_TERMCAP_mb = "$'\\e[1;32m'";
     LESS_TERMCAP_md = "$'\\e[1;32m'";
