@@ -1,0 +1,17 @@
+{
+  "name": "pi-extension-set",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@dietrichgebert/ponytail": "latest",
+    "@juicesharp/rpiv-ask-user-question": "latest",
+    "@juicesharp/rpiv-todo": "latest",
+    "@narumitw/pi-btw": "latest",
+    "@narumitw/pi-lsp": "latest",
+    "@narumitw/pi-statusline": "latest",
+    "context-mode": "latest",
+    "pi-claude-auth": "latest",
+    "pi-subagents": "latest",
+    "pi-web-access": "latest"
+  }
+}

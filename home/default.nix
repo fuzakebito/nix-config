@@ -12,6 +12,7 @@
     ./files.nix
     ./services.nix
     ./ollama.nix
+    ./pi
     ./opencode
     ./sway
     ./rofi
