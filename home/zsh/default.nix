@@ -71,6 +71,9 @@ in
         unsetopt beep
         KEYTIMEOUT=2
 
+        export GPG_TTY=$(tty)
+        gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
+
         # Prevent zcompile from trying to write to read-only /nix/store paths
         function ensure_zcompiled {
           local compiled="$1.zwc"

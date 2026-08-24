@@ -1,5 +1,38 @@
 { config, lib, pkgs, ... }:
 
+let
+  pinentryTmuxSource = pkgs.fetchurl {
+    url = "https://raw.githubusercontent.com/eth-p/pinentry-tmux/464d6a2077d8469b41692838ac2665b30a515ef4/pinentry-tmux.sh";
+    hash = "sha256-PZXC7vevx711Zz3c3m5q55YGLsQE8bonQu/wwEBjoLs=";
+  };
+
+  pinentryTmux = pkgs.runCommand "pinentry-tmux" { } ''
+    ${pkgs.gnused}/bin/sed \
+      -e "/-s 'fg=#0066aa bg=0'/d" \
+      -e "/-S 'fg=#0066ff'/d" \
+      -e 's/-B \\/-b rounded \\/' \
+      ${pinentryTmuxSource} > "$out"
+    chmod +x "$out"
+  '';
+
+  pinentryAuto = pkgs.writeShellScript "pinentry-auto" ''
+    if [[ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]]; then
+      exec ${pkgs.pinentry-gnome3}/bin/pinentry-gnome3 "$@"
+    fi
+
+    export PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.gnugrep pkgs.gnused pkgs.procps pkgs.tmux pkgs.which ]}:$PATH
+
+    if [[ -z "''${TMUX:-}" ]]; then
+      uid=$(${pkgs.coreutils}/bin/id -u)
+      socket="''${XDG_RUNTIME_DIR:-/run/user/$uid}/tmux-$uid/default"
+      serverPid=$(${pkgs.tmux}/bin/tmux -S "$socket" display-message -p '#{pid}' 2>/dev/null || true)
+      [[ -n "$serverPid" ]] && export TMUX="$socket,$serverPid,0"
+    fi
+
+    export PINENTRY_TMUX_PROGRAM=${pkgs.pinentry-curses}/bin/pinentry-curses
+    exec ${config.home.homeDirectory}/.local/bin/pinentry-tmux "$@"
+  '';
+in
 {
   # GPG secret subkeys (S/A/E) + ownertrust are encrypted in secrets.yaml
   # and decrypted by sops-nix at activation, then imported into the user's
@@ -22,12 +55,25 @@
   # Keep passphrases cached for a full work session while still forcing a
   # re-prompt after one day at most. The SSH variants cover authentication
   # subkeys when gpg-agent is used as an ssh-agent.
-  home.file.".gnupg/gpg-agent.conf".text = ''
-    default-cache-ttl 28800
-    max-cache-ttl 86400
-    default-cache-ttl-ssh 28800
-    max-cache-ttl-ssh 86400
-  '';
+  home.file = {
+    ".local/bin/pinentry-tmux" = {
+      source = pinentryTmux;
+      executable = true;
+    };
+
+    ".local/bin/pinentry-auto" = {
+      source = pinentryAuto;
+      executable = true;
+    };
+
+    ".gnupg/gpg-agent.conf".text = ''
+      pinentry-program ${config.home.homeDirectory}/.local/bin/pinentry-auto
+      default-cache-ttl 28800
+      max-cache-ttl 86400
+      default-cache-ttl-ssh 28800
+      max-cache-ttl-ssh 86400
+    '';
+  };
 
   # In home-manager mode sops-nix decrypts secrets from a user systemd service.
   # The activation DAG node named `sops-nix` only restarts that service, so an
