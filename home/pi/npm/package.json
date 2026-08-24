@@ -9,6 +9,7 @@
     "@narumitw/pi-btw": "latest",
     "@narumitw/pi-lsp": "latest",
     "@narumitw/pi-statusline": "latest",
+    "@victor-software-house/pi-curated-themes": "latest",
     "context-mode": "latest",
     "pi-claude-auth": "latest",
     "pi-subagents": "latest",

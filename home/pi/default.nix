@@ -8,6 +8,7 @@ let
     "@narumitw/pi-btw"
     "@narumitw/pi-lsp"
     "@narumitw/pi-statusline"
+    "@victor-software-house/pi-curated-themes"
     "context-mode"
     "pi-claude-auth"
     "pi-subagents"
@@ -27,7 +28,7 @@ let
 
   settings = (pkgs.formats.json { }).generate "pi-settings.json" {
     lastChangelogVersion = pkgs.pi-coding-agent.version;
-    theme = "dark";
+    theme = "catppuccin-mocha";
     defaultProvider = "openai-codex";
     defaultModel = "gpt-5.6-sol";
     defaultThinkingLevel = "medium";
