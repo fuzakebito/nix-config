@@ -33,6 +33,7 @@ let
     defaultModel = "gpt-5.6-sol";
     defaultThinkingLevel = "medium";
     hideThinkingBlock = false;
+    extensions = [ "${config.home.homeDirectory}/.pi/agent/plan-execute/index.ts" ];
     packages = map (name: "${extensionRoot}/${name}") extensionNames;
   };
 in
@@ -43,6 +44,10 @@ in
     ".pi/agent/APPEND_SYSTEM.md".source = ./files/APPEND_SYSTEM.md;
     ".pi/agent/agents" = {
       source = ./files/agents;
+      recursive = true;
+    };
+    ".pi/agent/plan-execute" = {
+      source = ./files/plan-execute;
       recursive = true;
     };
   };
