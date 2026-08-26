@@ -10,7 +10,13 @@ describe("multiagent oracle extension surface", () => {
     expect(source).toContain("workflowScript: buildWorkflowScript(target)");
     expect(source).toContain('async: true');
     expect(source).toContain('context: "fresh"');
-    expect(source).toContain("pi-subagents will deliver the final oracle result");
+    expect(source).toContain('intercomBridge: { mode: "off" }');
+    expect(source).toContain("waitForAsyncCompletion(pi.events, runId, signal)");
+    expect(source).toContain("text: result.output");
+    expect(source).toContain("pi.sendUserMessage(");
+    expect(source).toContain("Call the multiagent_oracle tool exactly once");
+    expect(source.match(/await launch\(/g)?.length).toBe(1);
+    expect(source).not.toContain("launched asynchronously");
     expect(source).not.toContain("runs.all");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { asyncRunId, buildWorkflowScript, PERSPECTIVE_CATALOG, spawnViaRpc } from "./core.ts";
+import { asyncRunId, buildWorkflowScript, PERSPECTIVE_CATALOG, spawnViaRpc, waitForAsyncCompletion } from "./core.ts";
 
 describe("multiagent oracle workflow", () => {
   test("builds extension-owned staged oracle orchestration", () => {
@@ -16,6 +16,8 @@ describe("multiagent oracle workflow", () => {
     expect(script).toContain('"perspective-revision-" + revision');
     expect(script).toContain("remained invalid after two revision requests");
     expect(script).toContain("return finalSynthesis.output");
+    expect(script).toContain("Never call contact_supervisor, intercom, or any coordination/progress tool");
+    expect(script).toContain("task: workflowTask(");
     expect(script).not.toContain('agent: "multiagent-oracle"');
     expect(script).not.toContain('agent: "luna-oracle"');
   });
@@ -66,5 +68,30 @@ describe("multiagent oracle workflow", () => {
     expect(asyncRunId({ details: { asyncId: "run-1" } })).toBe("run-1");
     expect(asyncRunId({ details: { runId: "run-2" } })).toBe("run-2");
     expect(() => asyncRunId({ details: {} })).toThrow("async run id");
+  });
+
+  test("blocks on the matching async completion", async () => {
+    const handlers = new Map<string, Set<(data: unknown) => void>>();
+    const events = {
+      on(channel: string, handler: (data: unknown) => void) {
+        const set = handlers.get(channel) ?? new Set();
+        set.add(handler);
+        handlers.set(channel, set);
+        return () => set.delete(handler);
+      },
+      emit(channel: string, data: unknown) {
+        for (const handler of handlers.get(channel) ?? []) handler(data);
+      },
+    };
+    let settled = false;
+    const waiting = waitForAsyncCompletion(events, "target-run", undefined, 1_000).then((value) => {
+      settled = true;
+      return value;
+    });
+    events.emit("subagent:async-complete", { runId: "other-run", success: true, output: "wrong" });
+    await Bun.sleep(0);
+    expect(settled).toBe(false);
+    events.emit("subagent:async-complete", { runId: "target-run", success: true, output: "final oracle" });
+    expect(await waiting).toBe("final oracle");
   });
 });

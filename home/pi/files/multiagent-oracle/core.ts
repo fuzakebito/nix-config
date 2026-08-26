@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 export interface Perspective {
   key: string;
@@ -53,6 +54,7 @@ export const PERSPECTIVE_SCHEMA = {
 } as const;
 
 const ORACLE_SECTIONS = `Return the normal oracle shape: Inherited decisions, Diagnosis, Drift / contradiction check, Recommendation, Risks, Need from main agent, and Suggested execution prompt.`;
+const NO_ESCALATION = `This workflow is self-contained. Never call contact_supervisor, intercom, or any coordination/progress tool. Do not ask the main agent questions during execution. Resolve uncertainty from the supplied target and repository evidence; record any remaining uncertainty under Need from main agent in your final output. This rule overrides the generic oracle coordination instructions.`;
 
 export function buildWorkflowScript(rawTarget: string): string {
   const target = rawTarget.trim();
@@ -63,8 +65,12 @@ const target = ${JSON.stringify(target)};
 const catalog = ${JSON.stringify(PERSPECTIVE_CATALOG)};
 const perspectiveSchema = ${JSON.stringify(PERSPECTIVE_SCHEMA)};
 const oracleSections = ${JSON.stringify(ORACLE_SECTIONS)};
+const noEscalation = ${JSON.stringify(NO_ESCALATION)};
+function workflowTask(instruction) {
+  return noEscalation + "\\n\\n" + instruction;
+}
 function oracleTask(emphasis) {
-  return "Analyze the target below as an independent read-only oracle. This fresh task is the authoritative contract. Inspect repository evidence directly when applicable; do not edit project/source files. Emphasis: " + emphasis + "\\n\\n" + oracleSections + "\\n\\nTarget:\\n" + target;
+  return workflowTask("Analyze the target below as an independent read-only oracle. This fresh task is the authoritative contract. Inspect repository evidence directly when applicable; do not edit project/source files. Emphasis: " + emphasis + "\\n\\n" + oracleSections + "\\n\\nTarget:\\n" + target);
 }
 function renderResults(results) {
   return results.map(function (result) {
@@ -94,7 +100,7 @@ let planner = await runs.run("perspective-planner", {
   model: "openai-codex/gpt-5.6-sol",
   thinking: "max",
   context: "fresh",
-  task: "Select 6-8 distinct, task-specific reasoning perspectives for GPT-5.6 Luna oracle calls. Select, adapt, combine, or replace catalog examples; invent a better perspective when the target warrants it. Avoid overlapping generic labels. Each instruction must identify a concrete question or failure class for this target. Use the required structured output only; this task-specific contract overrides the oracle prose format.\\n\\nCatalog:\\n" + catalog.map(function (item) { return "- " + item; }).join("\\n") + "\\n\\nTarget:\\n" + target,
+  task: workflowTask("Select 6-8 distinct, task-specific reasoning perspectives for GPT-5.6 Luna oracle calls. Select, adapt, combine, or replace catalog examples; invent a better perspective when the target warrants it. Avoid overlapping generic labels. Each instruction must identify a concrete question or failure class for this target. Use the required structured output only; this task-specific contract overrides the oracle prose format.\\n\\nCatalog:\\n" + catalog.map(function (item) { return "- " + item; }).join("\\n") + "\\n\\nTarget:\\n" + target),
   outputSchema: perspectiveSchema
 });
 function validatePlanner(result) {
@@ -127,7 +133,7 @@ for (let revision = 1; selection.errors.length > 0 && revision <= 2; revision++)
   if (!planner.runId) throw new Error("Perspective planner output was rejected but cannot be returned for revision: " + selection.errors.join("; "));
   planner = await runs.run("perspective-revision-" + revision, {
     resume: planner.runId,
-    task: "Your perspective selection was rejected. Correct every validation error and resubmit the complete structured output only. Do not defend the previous output.\\n\\nValidation errors:\\n- " + selection.errors.join("\\n- ")
+    task: workflowTask("Your perspective selection was rejected. Correct every validation error and resubmit the complete structured output only. Do not defend the previous output.\\n\\nValidation errors:\\n- " + selection.errors.join("\\n- "))
   });
   selection = validatePlanner(planner);
 }
@@ -150,7 +156,7 @@ const lunaSynthesis = await runs.run("luna-synthesis", {
   model: "openai-codex/gpt-5.6-sol",
   thinking: "max",
   context: "fresh",
-  task: "Synthesize the GPT-5.6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults)
+  task: workflowTask("Synthesize the GPT-5.6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults))
 });
 const independentResults = await independentPromise;
 const finalSynthesis = await runs.run("final-synthesis", {
@@ -158,7 +164,7 @@ const finalSynthesis = await runs.run("final-synthesis", {
   model: "openai-codex/gpt-5.6-sol",
   thinking: "max",
   context: "fresh",
-  task: "Produce the final multi-provider oracle recommendation from the advisory results below. Judge evidence and reasoning rather than vote count. Preserve material dissent and what would resolve it. Treat the Luna synthesis as one correlated OpenAI-family lane; also account for correlation between this synthesizer and oracle-sol. Name failed lanes under Risks and mark validation degraded when any lane failed. Return only the normal oracle shape with no raw transcripts or orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nIndependent oracle results:\\n" + renderResults(independentResults) + "\\n\\nLuna synthesis [" + (lunaSynthesis.ok ? "ok" : "failed") + "]:\\n" + lunaSynthesis.output
+  task: workflowTask("Produce the final multi-provider oracle recommendation from the advisory results below. Judge evidence and reasoning rather than vote count. Preserve material dissent and what would resolve it. Treat the Luna synthesis as one correlated OpenAI-family lane; also account for correlation between this synthesizer and oracle-sol. Name failed lanes under Risks and mark validation degraded when any lane failed. Return only the normal oracle shape with no raw transcripts or orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nIndependent oracle results:\\n" + renderResults(independentResults) + "\\n\\nLuna synthesis [" + (lunaSynthesis.ok ? "ok" : "failed") + "]:\\n" + lunaSynthesis.output)
 });
 return finalSynthesis.output;
 `.trim();
@@ -205,4 +211,67 @@ export function asyncRunId(data: unknown): string {
   const id = (details as { asyncId?: unknown; runId?: unknown }).asyncId ?? (details as { runId?: unknown }).runId;
   if (typeof id !== "string" || !id) throw new Error("pi-subagents RPC spawn response did not include an async run id.");
   return id;
+}
+
+interface CompletionEvent {
+  runId?: unknown;
+  id?: unknown;
+  state?: unknown;
+  success?: unknown;
+  archivePath?: unknown;
+  output?: unknown;
+  finalOutput?: unknown;
+  error?: unknown;
+}
+
+async function completionText(event: CompletionEvent): Promise<string> {
+  for (const value of [event.finalOutput, event.output]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  if (typeof event.archivePath === "string" && event.archivePath) {
+    const archive = JSON.parse(await readFile(event.archivePath, "utf8")) as { entries?: Array<{ text?: unknown }> };
+    const text = archive.entries?.map((entry) => typeof entry.text === "string" ? entry.text.trim() : "").filter(Boolean).join("\n\n");
+    if (text) return text;
+  }
+  if (typeof event.error === "string" && event.error) return event.error;
+  return `Multiagent oracle finished with state ${String(event.state ?? "unknown")}.`;
+}
+
+export function waitForAsyncCompletion(
+  events: RpcEventBus,
+  runId: string,
+  signal?: AbortSignal,
+  timeoutMs = 60 * 60 * 1000,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const cleanup = () => {
+      clearTimeout(timer);
+      unsubscribe();
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (error?: Error, output?: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(output ?? "");
+    };
+    const onAbort = () => finish(new Error("Multiagent oracle wait was cancelled."));
+    const unsubscribe = events.on("subagent:async-complete", (raw) => {
+      if (!raw || typeof raw !== "object") return;
+      const event = raw as CompletionEvent;
+      const id = event.runId ?? event.id;
+      if (id !== runId) return;
+      void completionText(event).then((output) => {
+        if (event.success === false) finish(new Error(output));
+        else finish(undefined, output);
+      }, (error) => finish(error instanceof Error ? error : new Error(String(error))));
+    });
+    timer = setTimeout(() => finish(new Error(`Multiagent oracle ${runId} did not complete within the wait timeout.`)), timeoutMs);
+    timer.unref?.();
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
