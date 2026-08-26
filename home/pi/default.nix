@@ -33,7 +33,10 @@ let
     defaultModel = "gpt-5.6-sol";
     defaultThinkingLevel = "medium";
     hideThinkingBlock = false;
-    extensions = [ "${config.home.homeDirectory}/.pi/agent/plan-execute/index.ts" ];
+    extensions = [
+      "${config.home.homeDirectory}/.pi/agent/plan-execute/index.ts"
+      "${config.home.homeDirectory}/.pi/agent/multiagent-oracle/index.ts"
+    ];
     packages = map (name: "${extensionRoot}/${name}") extensionNames;
   };
 in
@@ -48,6 +51,10 @@ in
     };
     ".pi/agent/plan-execute" = {
       source = ./files/plan-execute;
+      recursive = true;
+    };
+    ".pi/agent/multiagent-oracle" = {
+      source = ./files/multiagent-oracle;
       recursive = true;
     };
   };
