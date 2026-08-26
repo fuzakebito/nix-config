@@ -28,6 +28,9 @@
     arto = {
       url = "github:arto-app/Arto";
     };
+    herdr = {
+      url = "github:herdrdev/herdr/v0.8.2";
+    };
     # Upstream-pinned skill sources for ~/.config/opencode/skills/.
     # Both are plain content trees (`flake = false`); home/opencode/ symlinks them.
     humanizer-skill = {

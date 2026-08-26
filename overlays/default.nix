@@ -2,4 +2,5 @@
 # Applied in flake.nix alongside neovim-nightly-overlay.overlays.default
 inputs: _final: prev: {
   arto = inputs.arto.packages.${prev.stdenv.hostPlatform.system}.default;
+  herdr = inputs.herdr.packages.${prev.stdenv.hostPlatform.system}.default;
 }

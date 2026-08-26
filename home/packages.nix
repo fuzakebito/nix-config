@@ -44,6 +44,7 @@
     chawan
     libqalculate
     cloudflared
+    herdr
 
     # GUI applications
     arto # Markdown reader (github:arto-app/Arto)
