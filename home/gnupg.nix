@@ -15,22 +15,156 @@ let
     chmod +x "$out"
   '';
 
+  pinentryHerdr = pkgs.writeShellApplication {
+    name = "pinentry-herdr";
+    runtimeInputs = [ pkgs.coreutils pkgs.herdr pkgs.pinentry-curses ];
+    text = ''
+      if [[ -n "''${PINENTRY_HERDR_CALLER:-}" ]]; then
+        popupTty=$(tty)
+        pinentryArgs=()
+        while IFS= read -r -d $'\0' arg; do
+          pinentryArgs+=("$arg")
+        done <"$PINENTRY_HERDR_ARGS"
+        exec 1>"$PINENTRY_HERDR_STDOUT" 0<"$PINENTRY_HERDR_STDIN"
+        trap 'kill -USR1 "$PINENTRY_HERDR_CALLER"; exit 1' INT
+        "$PINENTRY_HERDR_PROGRAM" \
+          "''${pinentryArgs[@]}" \
+          --ttyname="$popupTty" \
+          --ttytype=xterm-256color \
+          --lc-ctype="''${LC_CTYPE:-C}"
+        exit $?
+      fi
+
+      caller=$$
+      fifoDir=$(mktemp -d)
+      stdoutFifo="$fifoDir/pinentry.stdout"
+      stdinFifo="$fifoDir/pinentry.stdin"
+      argsFile="$fifoDir/pinentry.args"
+      mkfifo "$stdoutFifo" "$stdinFifo"
+      if (( $# )); then
+        printf '%s\0' "$@" >"$argsFile"
+      else
+        : >"$argsFile"
+      fi
+
+      cleanup() {
+        exec 3>&- 2>/dev/null || true
+        [[ -n "''${readerPid:-}" ]] && kill "$readerPid" 2>/dev/null || true
+        [[ -n "''${watchdogPid:-}" ]] && kill "$watchdogPid" 2>/dev/null || true
+        rm -rf "$fifoDir"
+      }
+      trap 'exit 1' USR1 ALRM
+      trap 'exit 0' USR2
+      trap 'exit 130' INT
+      trap cleanup EXIT
+
+      if ! herdr plugin pane open \
+        --plugin local.pinentry \
+        --entrypoint pinentry \
+        --placement popup \
+        --width 78 \
+        --height 18 \
+        --env "PINENTRY_HERDR_CALLER=$caller" \
+        --env "PINENTRY_HERDR_STDIN=$stdinFifo" \
+        --env "PINENTRY_HERDR_STDOUT=$stdoutFifo" \
+        --env "PINENTRY_HERDR_ARGS=$argsFile" \
+        --env "PINENTRY_HERDR_PROGRAM=$PINENTRY_HERDR_PROGRAM" \
+        --focus >/dev/null 2>&1
+      then
+        trap - EXIT INT USR1 USR2 ALRM
+        rm -rf "$fifoDir"
+        exec "$PINENTRY_HERDR_PROGRAM" "$@"
+      fi
+
+      (
+        sleep 10
+        kill -ALRM "$caller" 2>/dev/null || true
+      ) &
+      watchdogPid=$!
+
+      (
+        cat <"$stdoutFifo" || true
+        kill -USR2 "$caller" 2>/dev/null || true
+      ) &
+      readerPid=$!
+
+      exec 3>"$stdinFifo"
+      kill "$watchdogPid" 2>/dev/null || true
+      wait "$watchdogPid" 2>/dev/null || true
+      unset watchdogPid
+
+      while IFS= read -r line; do
+        case "$line" in
+          "OPTION ttyname="*) printf 'OK\n' ;;
+          "GETINFO flavor"*) printf 'D pinentry-herdr\nOK\n' ;;
+          *) printf '%s\n' "$line" >&3 ;;
+        esac
+      done
+
+      exec 3>&-
+      wait "$readerPid" || true
+    '';
+  };
+
+  pinentryHerdrPlugin = pkgs.writeText "herdr-pinentry-plugin.toml" ''
+    id = "local.pinentry"
+    name = "Pinentry"
+    version = "0.1.0"
+    min_herdr_version = "0.7.4"
+    platforms = ["linux"]
+
+    [[panes]]
+    id = "pinentry"
+    title = "GPG Pinentry"
+    placement = "popup"
+    width = 78
+    height = 18
+    command = ["${pinentryHerdr}/bin/pinentry-herdr"]
+  '';
+
   pinentryAuto = pkgs.writeShellScript "pinentry-auto" ''
-    if [[ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]]; then
+    case "''${PINENTRY_USER_DATA:-}" in
+      fuzakebito:herdr) mode=herdr ;;
+      fuzakebito:tmux) mode=tmux ;;
+      fuzakebito:gui) mode=gui ;;
+      fuzakebito:tty) mode=tty ;;
+      *)
+        if [[ -n "''${HERDR_ENV:-}" ]]; then
+          mode=herdr
+        elif [[ -n "''${TMUX:-}" ]]; then
+          mode=tmux
+        elif [[ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]]; then
+          mode=gui
+        else
+          mode=tty
+        fi
+        ;;
+    esac
+
+    if [[ $mode == herdr ]]; then
+      export PINENTRY_HERDR_PROGRAM=${pkgs.pinentry-curses}/bin/pinentry-curses
+      exec ${pinentryHerdr}/bin/pinentry-herdr "$@"
+    fi
+
+    if [[ $mode == tmux ]]; then
+      export PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.gnugrep pkgs.gnused pkgs.procps pkgs.tmux pkgs.which ]}:$PATH
+
+      if [[ -z "''${TMUX:-}" ]]; then
+        uid=$(${pkgs.coreutils}/bin/id -u)
+        socket="''${XDG_RUNTIME_DIR:-/run/user/$uid}/tmux-$uid/default"
+        serverPid=$(${pkgs.tmux}/bin/tmux -S "$socket" display-message -p '#{pid}' 2>/dev/null || true)
+        [[ -n "$serverPid" ]] && export TMUX="$socket,$serverPid,0"
+      fi
+
+      export PINENTRY_TMUX_PROGRAM=${pkgs.pinentry-curses}/bin/pinentry-curses
+      exec ${config.home.homeDirectory}/.local/bin/pinentry-tmux "$@"
+    fi
+
+    if [[ $mode == gui && -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]]; then
       exec ${pkgs.pinentry-gnome3}/bin/pinentry-gnome3 "$@"
     fi
 
-    export PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.gnugrep pkgs.gnused pkgs.procps pkgs.tmux pkgs.which ]}:$PATH
-
-    if [[ -z "''${TMUX:-}" ]]; then
-      uid=$(${pkgs.coreutils}/bin/id -u)
-      socket="''${XDG_RUNTIME_DIR:-/run/user/$uid}/tmux-$uid/default"
-      serverPid=$(${pkgs.tmux}/bin/tmux -S "$socket" display-message -p '#{pid}' 2>/dev/null || true)
-      [[ -n "$serverPid" ]] && export TMUX="$socket,$serverPid,0"
-    fi
-
-    export PINENTRY_TMUX_PROGRAM=${pkgs.pinentry-curses}/bin/pinentry-curses
-    exec ${config.home.homeDirectory}/.local/bin/pinentry-tmux "$@"
+    exec ${pkgs.pinentry-curses}/bin/pinentry-curses "$@"
   '';
 in
 {
@@ -74,6 +208,13 @@ in
       max-cache-ttl-ssh 86400
     '';
   };
+
+  # Herdr persists linked plugins in its session registry. Linking is idempotent
+  # and also works while the server is offline, so every generation points at
+  # the current Nix store path for the popup command.
+  home.activation.linkPinentryHerdr = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run ${pkgs.herdr}/bin/herdr plugin link ${pinentryHerdrPlugin} --enabled
+  '';
 
   # In home-manager mode sops-nix decrypts secrets from a user systemd service.
   # The activation DAG node named `sops-nix` only restarts that service, so an

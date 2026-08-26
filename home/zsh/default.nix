@@ -72,6 +72,15 @@ in
         KEYTIMEOUT=2
 
         export GPG_TTY=$(tty)
+        if [[ -n "''${HERDR_ENV:-}" ]]; then
+          export PINENTRY_USER_DATA=fuzakebito:herdr
+        elif [[ -n "''${TMUX:-}" ]]; then
+          export PINENTRY_USER_DATA=fuzakebito:tmux
+        elif [[ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]]; then
+          export PINENTRY_USER_DATA=fuzakebito:gui
+        else
+          export PINENTRY_USER_DATA=fuzakebito:tty
+        fi
         gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 
         # Prevent zcompile from trying to write to read-only /nix/store paths
