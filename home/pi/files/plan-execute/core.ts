@@ -1,88 +1,226 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-export type PlanTaskKind = "implementation" | "verification";
-export type PlanTaskStatus = "pending" | "completed";
 export type ReviewVerdict = "pending" | "approved" | "rejected";
+export type TaskStatus = "pending" | "implemented" | "completed";
 export type WorkStatus = "planned" | "active" | "paused" | "completed" | "stopped";
+export type WorkStage = "dispatch" | "verify";
 
-export interface PlanTask {
+export interface Requirement {
   id: string;
-  title: string;
-  details: string;
-  references: string[];
-  acceptance: string[];
-  verification: string[];
-  dependsOn: string[];
-  wave: number;
-  ownedPaths: string[];
-  kind: PlanTaskKind;
-  status: PlanTaskStatus;
-  completedAt?: string;
+  text: string;
 }
 
-export interface PlanDocument {
-  version: 1;
+export interface Decision {
+  id: string;
+  text: string;
+  rationale: string;
+}
+
+export interface RepositoryEvidence {
+  claim: string;
+  references: string[];
+}
+
+export interface MetisGap {
+  type: "user-decision" | "missing-research" | "unsupported-assumption" | "scope-conflict" | "missing-requirement" | "untestable-outcome";
+  issue: string;
+  requiredAction: string;
+  reason: string;
+}
+
+export interface MetisOutput {
+  briefPath: string;
+  briefHash: string;
+  readiness: "ready" | "blocked";
+  blockingGaps: MetisGap[];
+  nonBlockingRisks: string[];
+  directives: string[];
+}
+
+export interface PlanningBrief {
+  version: 2;
   slug: string;
-  title: string;
-  goal: string;
+  request: string;
+  requirements: Requirement[];
+  decisions: Decision[];
+  assumptions: string[];
   constraints: string[];
   outOfScope: string[];
-  tasks: PlanTask[];
-  analysis: string;
+  repositoryEvidence: RepositoryEvidence[];
+  proposedApproach: string;
+  openQuestions: string[];
   revision: number;
-  reviewToken: string;
-  review: {
-    verdict: ReviewVerdict;
-    findings: string[];
-    rounds: number;
+  briefHash: string;
+  metis: {
+    readiness: "pending" | "ready" | "blocked";
+    briefHash?: string;
+    blockingGaps: MetisGap[];
+    nonBlockingRisks: string[];
+    directives: string[];
+    reviewedAt?: string;
   };
   createdAt: string;
   updatedAt: string;
 }
 
-export interface WorkState {
-  version: 1;
-  planSlug: string;
+export interface CheckSpec {
+  id: string;
+  program: string;
+  args: string[];
+  cwd?: string;
+  artifacts: string[];
+}
+
+export interface PlanTask {
+  id: string;
+  title: string;
+  outcome: string;
+  satisfies: string[];
+  decisions: string[];
+  references: string[];
+  dependsOn: string[];
+  expectedPaths: string[];
+  acceptance: string[];
+  workerChecks: CheckSpec[];
+  waveChecks: CheckSpec[];
+  status: TaskStatus;
+  completedAt?: string;
+}
+
+export interface SemanticDelta {
+  leaseId: string;
+  accomplished: string[];
+  architectureChanges: Array<{ fact: string; rationale: string; references: string[] }>;
+  decisions: Array<{ text: string; rationale: string; references: string[] }>;
+  invalidatedAssumptions: string[];
+  planDeviations: string[];
+  newRisks: string[];
+  userDecisionNeeded: string[];
+  recordedAt: string;
+}
+
+export interface MomusFinding {
+  requirementId?: string;
+  taskIds: string[];
+  issue: string;
+  reason: string;
+  requiredCorrection: string;
+}
+
+export interface MomusOutput {
   planPath: string;
-  projectRoot: string;
-  worktreePath: string;
+  planHash: string;
+  verdict: Exclude<ReviewVerdict, "pending">;
+  blockingFindings: MomusFinding[];
+  nonBlockingNotes: string[];
+}
+
+export interface PlanDocument {
+  version: 2;
+  slug: string;
+  title: string;
+  goal: string;
+  briefSlug: string;
+  briefHash: string;
+  requirements: Requirement[];
+  decisions: Decision[];
+  assumptions: string[];
+  constraints: string[];
+  outOfScope: string[];
+  repositoryEvidence: RepositoryEvidence[];
+  architecture: Array<{ fact: string; references: string[] }>;
+  risks: string[];
+  tasks: PlanTask[];
+  finalChecks: CheckSpec[];
+  semanticDeltas: SemanticDelta[];
+  revision: number;
+  specHash: string;
+  momus: {
+    verdict: ReviewVerdict;
+    planHash?: string;
+    blockingFindings: MomusFinding[];
+    nonBlockingNotes: string[];
+    reviewedAt?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkerOutput {
+  leaseId: string;
+  planHash: string;
+  taskIds: string[];
+  status: "implemented" | "blocked";
+  summary: string;
+  changedPaths: string[];
+  semanticDelta: Omit<SemanticDelta, "leaseId" | "recordedAt">;
+  blocker?: string;
+}
+
+export interface CheckReceipt {
+  id: string;
+  scope: "worker" | "wave" | "final";
+  command: string[];
+  exitCode: number;
+  durationMs: number;
+  stdoutPath: string;
+  stderrPath: string;
+  artifactHashes: Record<string, string>;
+}
+
+export interface ExecutionLease {
+  id: string;
+  planHash: string;
+  taskIds: string[];
+  baseline: Record<string, string>;
+  attempt: number;
+  createdAt: string;
+}
+
+export interface WorkState {
+  version: 2;
+  planSlug: string;
+  planHash: string;
   status: WorkStatus;
-  currentTask?: string;
-  currentWave?: number;
-  waveToken?: string;
-  waveBaseline: Record<string, string>;
-  sessionIds: string[];
+  stage: WorkStage;
+  lease?: ExecutionLease;
+  workerRunId?: string;
+  receipts: CheckReceipt[];
+  lastFailure?: string;
   startedAt?: string;
   endedAt?: string;
   updatedAt: string;
   stopReason?: string;
 }
 
-export interface PlanReviewOutput {
-  planPath: string;
-  reviewToken: string;
-  verdict: Exclude<ReviewVerdict, "pending">;
-  findings: string[];
+export interface RuntimeCheckpoint {
+  version: 2;
+  plan: PlanDocument;
+  state: WorkState;
+  writtenAt: string;
 }
 
-export interface CompletionEvidence {
-  taskId: string;
-  summary: string;
-  commands: string[];
-  artifact?: string;
-  adversarialChecks: string[];
-  cleanup: string[];
-  timestamp: string;
+function cleanList(values: string[] | undefined): string[] {
+  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
 }
 
-const FINAL_TASKS: Array<Pick<PlanTask, "id" | "title" | "details">> = [
-  { id: "F1", title: "Plan compliance audit", details: "Verify every planned requirement and constraint against the implementation." },
-  { id: "F2", title: "Code quality review", details: "Review correctness, maintainability, tests, and repository conventions." },
-  { id: "F3", title: "Real QA", details: "Run the user-visible workflow and preserve concrete evidence." },
-  { id: "F4", title: "Scope fidelity check", details: "Confirm required scope is complete and unrelated changes were not introduced." },
-];
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, child]) => child !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function contentHash(value: unknown): string {
+  return createHash("sha256").update(canonical(value)).digest("hex");
+}
 
 export function slugify(value: string): string {
   const slug = value
@@ -94,141 +232,272 @@ export function slugify(value: string): string {
   return slug || `plan-${Date.now()}`;
 }
 
-function cleanList(values: string[] | undefined): string[] {
-  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
+function safeRelative(value: string, label: string): string {
+  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  if (!normalized || normalized === "." || path.isAbsolute(normalized) || normalized.split("/").includes("..")) {
+    throw new Error(`${label} has unsafe path ${value || "(empty)"}`);
+  }
+  return normalized;
 }
 
-export function createPlan(input: {
-  title: string;
-  goal: string;
+const FORBIDDEN_CHECK_PROGRAMS = new Set(["bash", "sh", "zsh", "fish", "rm", "mv", "cp", "dd", "tee", "curl", "wget", "sudo", "doas"]);
+
+function normalizeCheck(check: Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }, owner: string): CheckSpec {
+  const id = check.id.trim();
+  const program = check.program.trim();
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(id) || id.includes("..") || !program) throw new Error(`${owner} check requires a safe id and program`);
+  if (program.includes("/") || program.includes("\\") || FORBIDDEN_CHECK_PROGRAMS.has(program)) throw new Error(`${owner} check ${id} uses a forbidden program`);
+  if (program === "git" && (!["diff", "status", "show", "log", "grep", "ls-files"].includes(check.args[0] ?? "") || check.args.some((arg) => arg === "-o" || arg.startsWith("--output")))) throw new Error(`${owner} check ${id} uses an unsafe Git command`);
+  if (program === "nix" && !["build", "eval", "flake"].includes(check.args[0] ?? "")) throw new Error(`${owner} check ${id} uses an unsupported Nix command`);
+  if (program === "nix" && check.args[0] === "build" && !check.args.includes("--no-link")) throw new Error(`${owner} check ${id} must use nix build --no-link`);
+  const evalFlags = new Set(["-e", "-c", "-p", "--eval", "--print"]);
+  if (["bun", "node", "deno", "python", "python3", "ruby", "perl"].includes(program) && check.args.some((arg) => evalFlags.has(arg))) throw new Error(`${owner} check ${id} cannot execute inline code`);
+  return {
+    id,
+    program,
+    args: check.args.map((arg) => String(arg)),
+    cwd: check.cwd ? safeRelative(check.cwd, `${owner} check ${id} cwd`) : undefined,
+    artifacts: cleanList(check.artifacts).map((artifact) => safeRelative(artifact, `${owner} check ${id} artifact`)),
+  };
+}
+
+function parseObject<T>(output: string, label: string): T {
+  const start = output.indexOf("{");
+  const end = output.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error(`${label} output is not a JSON object`);
+  return JSON.parse(output.slice(start, end + 1)) as T;
+}
+
+export function createPlanningBrief(input: {
+  request: string;
+  requirements: string[];
+  decisions?: Array<{ text: string; rationale: string }>;
+  assumptions?: string[];
   constraints?: string[];
   outOfScope?: string[];
-  analysis: string;
-  tasks: Array<{
-    title: string;
-    details: string;
-    references?: string[];
-    acceptance: string[];
-    verification: string[];
-    dependsOn?: string[];
-    wave: number;
-    ownedPaths: string[];
-  }>;
-}, previous?: PlanDocument): PlanDocument {
-  const title = input.title.trim();
-  const goal = input.goal.trim();
-  const analysis = input.analysis.trim();
-  if (!title || !goal || !analysis) throw new Error("title, goal, and pre-plan analysis are required");
-  if (input.tasks.length === 0) throw new Error("at least one implementation task is required");
-
-  const implementationTasks: PlanTask[] = input.tasks.map((task, index) => {
-    const id = String(index + 1);
-    const acceptance = cleanList(task.acceptance);
-    const verification = cleanList(task.verification);
-    if (!task.title.trim() || !task.details.trim()) throw new Error(`task ${id} requires title and details`);
-    if (acceptance.length === 0) throw new Error(`task ${id} requires acceptance criteria`);
-    if (verification.length === 0) throw new Error(`task ${id} requires verification steps`);
-    if (!Number.isInteger(task.wave) || task.wave < 1) throw new Error(`task ${id} requires a positive integer wave`);
-    if (cleanList(task.ownedPaths).length === 0) throw new Error(`task ${id} requires at least one owned path`);
-    return {
-      id,
-      title: task.title.trim(),
-      details: task.details.trim(),
-      references: cleanList(task.references),
-      acceptance,
-      verification,
-      dependsOn: cleanList(task.dependsOn),
-      wave: task.wave,
-      ownedPaths: cleanList(task.ownedPaths).map((ownedPath) => ownedPath.replaceAll("\\", "/").replace(/\/+$/, "")),
-      kind: "implementation",
-      status: "pending",
-    };
-  });
-
-  const implementationById = new Map(implementationTasks.map((task) => [task.id, task]));
-  for (const task of implementationTasks) {
-    for (const ownedPath of task.ownedPaths) {
-      if (!ownedPath || ownedPath === "." || path.isAbsolute(ownedPath) || ownedPath.split("/").includes("..")) {
-        throw new Error(`task ${task.id} has unsafe owned path ${ownedPath || "(empty)"}`);
-      }
-    }
-    for (const dependency of task.dependsOn) {
-      const dependencyTask = implementationById.get(dependency);
-      if (!dependencyTask) throw new Error(`task ${task.id} has unknown dependency ${dependency}`);
-      if (dependency === task.id) throw new Error(`task ${task.id} cannot depend on itself`);
-      if (Number(dependency) >= Number(task.id)) throw new Error(`task ${task.id} must depend only on an earlier task`);
-      if (dependencyTask.wave >= task.wave) throw new Error(`task ${task.id} must run in a later wave than dependency ${dependency}`);
-    }
-  }
-  for (let leftIndex = 0; leftIndex < implementationTasks.length; leftIndex++) {
-    const left = implementationTasks[leftIndex];
-    for (const right of implementationTasks.slice(leftIndex + 1)) {
-      if (left.wave !== right.wave) continue;
-      for (const leftPath of left.ownedPaths) {
-        for (const rightPath of right.ownedPaths) {
-          if (leftPath === rightPath || leftPath.startsWith(`${rightPath}/`) || rightPath.startsWith(`${leftPath}/`)) {
-            throw new Error(`wave ${left.wave} has overlapping owned paths: ${leftPath} and ${rightPath}`);
-          }
-        }
-      }
-    }
-  }
-
-  const allImplementationIds = implementationTasks.map((task) => task.id);
-  const finalWave = Math.max(...implementationTasks.map((task) => task.wave)) + 1;
-  const verificationTasks: PlanTask[] = FINAL_TASKS.map((task) => ({
-    ...task,
-    references: [],
-    acceptance: [`${task.title} returns PASS with concrete evidence`],
-    verification: [task.details],
-    dependsOn: [...allImplementationIds],
-    wave: finalWave,
-    ownedPaths: [],
-    kind: "verification",
-    status: "pending",
+  repositoryEvidence?: RepositoryEvidence[];
+  proposedApproach: string;
+  openQuestions?: string[];
+}, previous?: PlanningBrief): PlanningBrief {
+  const request = input.request.trim();
+  const proposedApproach = input.proposedApproach.trim();
+  const requirements = cleanList(input.requirements).map((text, index) => ({ id: `R${index + 1}`, text }));
+  if (!request || !proposedApproach || requirements.length === 0) throw new Error("request, requirements, and proposedApproach are required");
+  const decisions = (input.decisions ?? []).map((decision, index) => ({
+    id: `D${index + 1}`,
+    text: decision.text.trim(),
+    rationale: decision.rationale.trim(),
   }));
-
-  const now = new Date().toISOString();
-  return {
-    version: 1,
-    slug: previous?.slug ?? slugify(title),
-    title,
-    goal,
+  if (decisions.some((decision) => !decision.text || !decision.rationale)) throw new Error("every decision requires text and rationale");
+  const evidence = (input.repositoryEvidence ?? []).map((item) => ({
+    claim: item.claim.trim(),
+    references: cleanList(item.references),
+  }));
+  if (evidence.some((item) => !item.claim || item.references.length === 0)) throw new Error("repository evidence requires a claim and references");
+  const spec = {
+    request,
+    requirements,
+    decisions,
+    assumptions: cleanList(input.assumptions),
     constraints: cleanList(input.constraints),
     outOfScope: cleanList(input.outOfScope),
-    tasks: [...implementationTasks, ...verificationTasks],
-    analysis,
+    repositoryEvidence: evidence,
+    proposedApproach,
+    openQuestions: cleanList(input.openQuestions),
+  };
+  const now = new Date().toISOString();
+  return {
+    version: 2,
+    slug: previous?.slug ?? slugify(request),
+    ...spec,
     revision: (previous?.revision ?? 0) + 1,
-    reviewToken: randomUUID(),
-    review: { verdict: "pending", findings: [], rounds: previous?.review.rounds ?? 0 },
+    briefHash: contentHash(spec),
+    metis: { readiness: "pending", blockingGaps: [], nonBlockingRisks: [], directives: [] },
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
   };
 }
 
-export function parsePlanReviewOutput(output: string): PlanReviewOutput {
-  const start = output.indexOf("{");
-  const end = output.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("reviewer output is not a JSON object");
-  const parsed = JSON.parse(output.slice(start, end + 1)) as Partial<PlanReviewOutput>;
-  if (!parsed.planPath?.trim()) throw new Error("reviewer output is missing planPath");
-  if (!parsed.reviewToken?.trim()) throw new Error("reviewer output is missing reviewToken");
-  if (!(["approved", "rejected"] as unknown[]).includes(parsed.verdict)) throw new Error("reviewer output has invalid verdict");
-  if (!Array.isArray(parsed.findings) || parsed.findings.some((finding) => typeof finding !== "string")) {
-    throw new Error("reviewer output has invalid findings");
-  }
-  if (parsed.verdict === "rejected" && parsed.findings.length === 0) throw new Error("a rejected review requires findings");
-  return parsed as PlanReviewOutput;
+export function parseMetisOutput(output: string): MetisOutput {
+  const parsed = parseObject<MetisOutput>(output, "Metis");
+  if (!parsed.briefPath?.trim() || !parsed.briefHash?.trim()) throw new Error("Metis output is missing briefPath or briefHash");
+  if (!(["ready", "blocked"] as unknown[]).includes(parsed.readiness)) throw new Error("Metis output has invalid readiness");
+  if (!Array.isArray(parsed.blockingGaps) || !Array.isArray(parsed.nonBlockingRisks) || !Array.isArray(parsed.directives)) throw new Error("Metis output has invalid arrays");
+  const gapTypes = new Set(["user-decision", "missing-research", "unsupported-assumption", "scope-conflict", "missing-requirement", "untestable-outcome"]);
+  if (parsed.blockingGaps.some((gap) => !gap || !gapTypes.has(gap.type) || !gap.issue?.trim() || !gap.requiredAction?.trim() || !gap.reason?.trim())) throw new Error("Metis output has an invalid blocking gap");
+  if (parsed.nonBlockingRisks.some((item) => typeof item !== "string") || parsed.directives.some((item) => typeof item !== "string")) throw new Error("Metis output has invalid text entries");
+  if (parsed.readiness === "ready" && parsed.blockingGaps.length > 0) throw new Error("ready Metis output cannot contain blocking gaps");
+  if (parsed.readiness === "blocked" && parsed.blockingGaps.length === 0) throw new Error("blocked Metis output requires blocking gaps");
+  return parsed;
 }
 
-export function reviewPlan(plan: PlanDocument, verdict: Exclude<ReviewVerdict, "pending">, findings: string[]): PlanDocument {
-  const cleaned = cleanList(findings);
-  if (verdict === "rejected" && cleaned.length === 0) throw new Error("a rejected plan requires findings");
+export function applyMetisReview(brief: PlanningBrief, review: MetisOutput): PlanningBrief {
+  if (review.briefHash !== brief.briefHash) throw new Error("Metis review is stale");
   return {
-    ...plan,
-    review: { verdict, findings: cleaned, rounds: plan.review.rounds + 1 },
+    ...brief,
+    metis: {
+      readiness: review.readiness,
+      briefHash: review.briefHash,
+      blockingGaps: review.blockingGaps,
+      nonBlockingRisks: cleanList(review.nonBlockingRisks),
+      directives: cleanList(review.directives),
+      reviewedAt: new Date().toISOString(),
+    },
     updatedAt: new Date().toISOString(),
   };
+}
+
+function planSpec(plan: Pick<PlanDocument, "title" | "goal" | "briefSlug" | "briefHash" | "requirements" | "decisions" | "assumptions" | "constraints" | "outOfScope" | "repositoryEvidence" | "architecture" | "risks" | "tasks" | "finalChecks">) {
+  return {
+    title: plan.title,
+    goal: plan.goal,
+    briefSlug: plan.briefSlug,
+    briefHash: plan.briefHash,
+    requirements: plan.requirements,
+    decisions: plan.decisions,
+    assumptions: plan.assumptions,
+    constraints: plan.constraints,
+    outOfScope: plan.outOfScope,
+    repositoryEvidence: plan.repositoryEvidence,
+    architecture: plan.architecture,
+    risks: plan.risks,
+    tasks: plan.tasks.map(({ status: _status, completedAt: _completedAt, ...task }) => task),
+    finalChecks: plan.finalChecks,
+  };
+}
+
+export function createPlan(input: {
+  title: string;
+  goal: string;
+  architecture?: Array<{ fact: string; references: string[] }>;
+  risks?: string[];
+  tasks: Array<{
+    title: string;
+    outcome: string;
+    satisfies: string[];
+    decisions?: string[];
+    references?: string[];
+    dependsOn?: string[];
+    expectedPaths: string[];
+    acceptance: string[];
+    workerChecks: Array<Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }>;
+    waveChecks?: Array<Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }>;
+  }>;
+  finalChecks: Array<Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }>;
+}, brief: PlanningBrief, previous?: PlanDocument): PlanDocument {
+  if (brief.metis.readiness !== "ready" || brief.metis.briefHash !== brief.briefHash) throw new Error("current Planning Brief requires Metis READY before plan generation");
+  if (brief.openQuestions.length > 0) throw new Error("Planning Brief still has open questions");
+  const title = input.title.trim();
+  const goal = input.goal.trim();
+  if (!title || !goal || input.tasks.length === 0) throw new Error("title, goal, and at least one task are required");
+  const requirementIds = new Set(brief.requirements.map((item) => item.id));
+  const decisionIds = new Set(brief.decisions.map((item) => item.id));
+  const tasks: PlanTask[] = input.tasks.map((task, index) => {
+    const id = `T${index + 1}`;
+    const satisfies = cleanList(task.satisfies);
+    const decisions = cleanList(task.decisions);
+    if (!task.title.trim() || !task.outcome.trim()) throw new Error(`${id} requires title and outcome`);
+    if (satisfies.length === 0 || satisfies.some((value) => !requirementIds.has(value))) throw new Error(`${id} has missing or unknown requirement IDs`);
+    if (decisions.some((value) => !decisionIds.has(value))) throw new Error(`${id} has unknown decision IDs`);
+    const acceptance = cleanList(task.acceptance);
+    if (acceptance.length === 0) throw new Error(`${id} requires acceptance criteria`);
+    const expectedPaths = cleanList(task.expectedPaths).map((value) => safeRelative(value, id));
+    if (expectedPaths.length === 0) throw new Error(`${id} requires expected paths`);
+    const workerChecks = task.workerChecks.map((check) => normalizeCheck(check, id));
+    if (workerChecks.length === 0) throw new Error(`${id} requires worker checks`);
+    return {
+      id,
+      title: task.title.trim(),
+      outcome: task.outcome.trim(),
+      satisfies,
+      decisions,
+      references: cleanList(task.references),
+      dependsOn: cleanList(task.dependsOn),
+      expectedPaths,
+      acceptance,
+      workerChecks,
+      waveChecks: (task.waveChecks ?? []).map((check) => normalizeCheck(check, `${id} wave`)),
+      status: "pending",
+    };
+  });
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  for (const task of tasks) {
+    for (const dependency of task.dependsOn) {
+      if (!byId.has(dependency)) throw new Error(`${task.id} has unknown dependency ${dependency}`);
+      if (Number(dependency.slice(1)) >= Number(task.id.slice(1))) throw new Error(`${task.id} must depend only on an earlier task`);
+    }
+  }
+  for (const requirement of requirementIds) {
+    if (!tasks.some((task) => task.satisfies.includes(requirement))) throw new Error(`requirement ${requirement} is not satisfied by any task`);
+  }
+  const finalChecks = input.finalChecks.map((check) => normalizeCheck(check, "final"));
+  if (finalChecks.length === 0) throw new Error("at least one final check is required");
+  const checkIds = [...tasks.flatMap((task) => [...task.workerChecks, ...task.waveChecks]), ...finalChecks].map((check) => check.id);
+  if (new Set(checkIds).size !== checkIds.length) throw new Error("check IDs must be unique across the plan");
+  const architecture = (input.architecture ?? []).map((item) => ({ fact: item.fact.trim(), references: cleanList(item.references) }));
+  if (architecture.some((item) => !item.fact || item.references.length === 0)) throw new Error("architecture facts require references");
+  const now = new Date().toISOString();
+  const base: Omit<PlanDocument, "specHash"> = {
+    version: 2,
+    slug: previous?.slug ?? slugify(title),
+    title,
+    goal,
+    briefSlug: brief.slug,
+    briefHash: brief.briefHash,
+    requirements: brief.requirements,
+    decisions: brief.decisions,
+    assumptions: brief.assumptions,
+    constraints: brief.constraints,
+    outOfScope: brief.outOfScope,
+    repositoryEvidence: brief.repositoryEvidence,
+    architecture,
+    risks: cleanList([...(brief.metis.nonBlockingRisks ?? []), ...(input.risks ?? [])]),
+    tasks,
+    finalChecks,
+    semanticDeltas: [],
+    revision: (previous?.revision ?? 0) + 1,
+    momus: { verdict: "pending", blockingFindings: [], nonBlockingNotes: [] },
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+  };
+  return { ...base, specHash: contentHash(planSpec(base as PlanDocument)) };
+}
+
+export function parseMomusOutput(output: string): MomusOutput {
+  const parsed = parseObject<MomusOutput>(output, "Momus");
+  if (!parsed.planPath?.trim() || !parsed.planHash?.trim()) throw new Error("Momus output is missing planPath or planHash");
+  if (!(["approved", "rejected"] as unknown[]).includes(parsed.verdict)) throw new Error("Momus output has invalid verdict");
+  if (!Array.isArray(parsed.blockingFindings) || !Array.isArray(parsed.nonBlockingNotes)) throw new Error("Momus output has invalid arrays");
+  if (parsed.blockingFindings.some((finding) => !finding || !Array.isArray(finding.taskIds) || finding.taskIds.some((item) => typeof item !== "string") || !finding.issue?.trim() || !finding.reason?.trim() || !finding.requiredCorrection?.trim())) throw new Error("Momus output has an invalid blocking finding");
+  if (parsed.nonBlockingNotes.some((item) => typeof item !== "string")) throw new Error("Momus output has invalid notes");
+  if (parsed.verdict === "approved" && parsed.blockingFindings.length > 0) throw new Error("approved Momus output cannot contain blocking findings");
+  if (parsed.verdict === "rejected" && parsed.blockingFindings.length === 0) throw new Error("rejected Momus output requires blocking findings");
+  return parsed;
+}
+
+export function applyMomusReview(plan: PlanDocument, review: MomusOutput): PlanDocument {
+  if (review.planHash !== plan.specHash) throw new Error("Momus review is stale");
+  return {
+    ...plan,
+    momus: {
+      verdict: review.verdict,
+      planHash: review.planHash,
+      blockingFindings: review.blockingFindings,
+      nonBlockingNotes: cleanList(review.nonBlockingNotes),
+      reviewedAt: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getReadyTasks(plan: PlanDocument): PlanTask[] {
+  if (plan.tasks.some((task) => task.status === "implemented")) return [];
+  const completed = new Set(plan.tasks.filter((task) => task.status === "completed").map((task) => task.id));
+  return plan.tasks.filter((task) => task.status === "pending" && task.dependsOn.every((dependency) => completed.has(dependency)));
+}
+
+export function getImplementedTasks(plan: PlanDocument): PlanTask[] {
+  return plan.tasks.filter((task) => task.status === "implemented");
 }
 
 export function getProgress(plan: PlanDocument): { completed: number; total: number; remaining: number } {
@@ -236,159 +505,275 @@ export function getProgress(plan: PlanDocument): { completed: number; total: num
   return { completed, total: plan.tasks.length, remaining: plan.tasks.length - completed };
 }
 
-export function getReadyWave(plan: PlanDocument): PlanTask[] {
-  const completed = new Set(plan.tasks.filter((task) => task.status === "completed").map((task) => task.id));
-  const ready = plan.tasks.filter(
-    (task) => task.status === "pending" && task.dependsOn.every((dependency) => completed.has(dependency)),
-  );
-  if (ready.length === 0) return [];
-  const wave = Math.min(...ready.map((task) => task.wave));
-  return ready.filter((task) => task.wave === wave);
+export function createLease(plan: PlanDocument, baseline: Record<string, string>, previous?: ExecutionLease): ExecutionLease {
+  const tasks = getReadyTasks(plan);
+  if (tasks.length === 0) throw new Error("no dependency-ready tasks");
+  return {
+    id: randomUUID(),
+    planHash: plan.specHash,
+    taskIds: tasks.map((task) => task.id),
+    baseline,
+    attempt: (previous?.attempt ?? 0) + 1,
+    createdAt: new Date().toISOString(),
+  };
 }
 
-export function getNextTask(plan: PlanDocument): PlanTask | undefined {
-  return getReadyWave(plan)[0];
+export function parseWorkerOutput(output: string): WorkerOutput {
+  const parsed = parseObject<WorkerOutput>(output, "worker");
+  if (!parsed.leaseId?.trim() || !parsed.planHash?.trim() || !Array.isArray(parsed.taskIds)) throw new Error("worker output is missing lease identity");
+  if (!(["implemented", "blocked"] as unknown[]).includes(parsed.status)) throw new Error("worker output has invalid status");
+  if (!parsed.summary?.trim() || !Array.isArray(parsed.changedPaths) || parsed.changedPaths.some((item) => typeof item !== "string") || !parsed.semanticDelta) throw new Error("worker output is incomplete");
+  const delta = parsed.semanticDelta;
+  if (![delta.accomplished, delta.invalidatedAssumptions, delta.planDeviations, delta.newRisks, delta.userDecisionNeeded].every((items) => Array.isArray(items) && items.every((item) => typeof item === "string"))) throw new Error("worker semantic delta has invalid text arrays");
+  if (!Array.isArray(delta.architectureChanges) || delta.architectureChanges.some((item) => !item?.fact?.trim() || !item.rationale?.trim() || !Array.isArray(item.references))) throw new Error("worker semantic delta has invalid architecture changes");
+  if (!Array.isArray(delta.decisions) || delta.decisions.some((item) => !item?.text?.trim() || !item.rationale?.trim() || !Array.isArray(item.references))) throw new Error("worker semantic delta has invalid decisions");
+  return parsed;
 }
 
-export function completeTask(plan: PlanDocument, evidence: CompletionEvidence): PlanDocument {
-  const task = plan.tasks.find((candidate) => candidate.id === evidence.taskId);
-  if (!task) throw new Error(`unknown task ${evidence.taskId}`);
-  if (task.status === "completed") throw new Error(`task ${task.id} is already completed`);
-  const ready = getReadyWave(plan);
-  if (!ready.some((candidate) => candidate.id === task.id)) {
-    throw new Error(`task ${task.id} is blocked; ready wave contains ${ready.map((candidate) => candidate.id).join(", ") || "none"}`);
+function normalizeDelta(leaseId: string, delta: WorkerOutput["semanticDelta"]): SemanticDelta {
+  return {
+    leaseId,
+    accomplished: cleanList(delta.accomplished),
+    architectureChanges: (delta.architectureChanges ?? []).map((item) => ({
+      fact: item.fact.trim(), rationale: item.rationale.trim(), references: cleanList(item.references),
+    })),
+    decisions: (delta.decisions ?? []).map((item) => ({
+      text: item.text.trim(), rationale: item.rationale.trim(), references: cleanList(item.references),
+    })),
+    invalidatedAssumptions: cleanList(delta.invalidatedAssumptions),
+    planDeviations: cleanList(delta.planDeviations),
+    newRisks: cleanList(delta.newRisks),
+    userDecisionNeeded: cleanList(delta.userDecisionNeeded),
+    recordedAt: new Date().toISOString(),
+  };
+}
+
+export function recordSemanticDelta(plan: PlanDocument, leaseId: string, delta: WorkerOutput["semanticDelta"]): PlanDocument {
+  const normalized = normalizeDelta(leaseId, delta);
+  return { ...plan, semanticDeltas: [...plan.semanticDeltas.filter((item) => item.leaseId !== leaseId), normalized], updatedAt: normalized.recordedAt };
+}
+
+export function recordExecutionDecision(plan: PlanDocument, question: string, decision: string, rationale: string, references: string[]): PlanDocument {
+  const text = decision.trim();
+  const why = rationale.trim();
+  if (!question.trim() || !text || !why) throw new Error("question, decision, and rationale are required");
+  const recordedAt = new Date().toISOString();
+  const semanticDeltas = plan.semanticDeltas.map((delta) => ({
+    ...delta,
+    userDecisionNeeded: delta.userDecisionNeeded.filter((item) => item !== question.trim()),
+  }));
+  semanticDeltas.push({
+    leaseId: `decision-${contentHash({ question, text, why }).slice(0, 12)}`,
+    accomplished: [], architectureChanges: [],
+    decisions: [{ text, rationale: why, references: cleanList(references) }],
+    invalidatedAssumptions: [], planDeviations: [], newRisks: [], userDecisionNeeded: [], recordedAt,
+  });
+  return { ...plan, semanticDeltas, updatedAt: recordedAt };
+}
+
+export function importWorkerOutput(plan: PlanDocument, lease: ExecutionLease, output: WorkerOutput, actualChangedPaths: string[]): PlanDocument {
+  if (output.leaseId !== lease.id || output.planHash !== lease.planHash || output.planHash !== plan.specHash) throw new Error("worker output has stale lease identity");
+  if (JSON.stringify(output.taskIds) !== JSON.stringify(lease.taskIds)) throw new Error("worker output task IDs do not match the lease");
+  if (output.status === "blocked") throw new Error(output.blocker?.trim() || "worker reported a blocker");
+  const expected = plan.tasks.filter((task) => lease.taskIds.includes(task.id));
+  if (expected.length !== lease.taskIds.length || expected.some((task) => task.status === "completed")) throw new Error("lease tasks are no longer active");
+  const allowedPaths = expected.flatMap((task) => task.expectedPaths);
+  const outside = actualChangedPaths.filter((changed) => !allowedPaths.some((allowed) => changed === allowed || changed.startsWith(`${allowed}/`)));
+  if (outside.length > 0) throw new Error(`worker modified paths outside the lease: ${outside.join(", ")}`);
+  const withDelta = recordSemanticDelta(plan, lease.id, output.semanticDelta);
+  return {
+    ...withDelta,
+    tasks: withDelta.tasks.map((task) => lease.taskIds.includes(task.id) ? { ...task, status: "implemented" } : task),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function completeLease(plan: PlanDocument, lease: ExecutionLease, receipts: CheckReceipt[]): PlanDocument {
+  const tasks = plan.tasks.filter((task) => lease.taskIds.includes(task.id));
+  if (tasks.length !== lease.taskIds.length || tasks.some((task) => task.status !== "implemented")) throw new Error("lease tasks are not implemented");
+  const required = [...tasks.flatMap((task) => task.workerChecks), ...tasks.flatMap((task) => task.waveChecks)];
+  for (const check of required) {
+    const receipt = receipts.find((item) => item.id === check.id);
+    if (!receipt || receipt.exitCode !== 0) throw new Error(`check ${check.id} has not passed`);
   }
-  if (!evidence.summary.trim()) throw new Error("completion summary is required");
-  if (cleanList(evidence.commands).length === 0) throw new Error("at least one verification command or check is required");
-  if (!evidence.artifact?.trim()) throw new Error("a QA or review artifact is required");
-  if (cleanList(evidence.adversarialChecks).length === 0) throw new Error("at least one adversarial check is required");
-  if (cleanList(evidence.cleanup).length === 0) throw new Error("cleanup receipts are required; use 'none required' when applicable");
+  const completedAt = new Date().toISOString();
+  return {
+    ...plan,
+    tasks: plan.tasks.map((task) => lease.taskIds.includes(task.id) ? { ...task, status: "completed", completedAt } : task),
+    updatedAt: completedAt,
+  };
+}
 
-  const tasks = plan.tasks.map((candidate) =>
-    candidate.id === task.id ? { ...candidate, status: "completed" as const, completedAt: evidence.timestamp } : candidate,
-  );
-  return { ...plan, tasks, updatedAt: evidence.timestamp };
+export function renderStrategicContext(plan: PlanDocument): string {
+  const list = (values: string[]) => cleanList(values).map((item) => `- ${item}`).join("\n") || "- none";
+  const decisions = plan.decisions.map((item) => `- ${item.id}: ${item.text} — ${item.rationale}`);
+  const architecture = plan.architecture.map((item) => `- ${item.fact} (${item.references.join(", ")})`);
+  const executionDecisions = plan.semanticDeltas.flatMap((delta) => delta.decisions.map((item) => `- ${item.text} — ${item.rationale} (${item.references.join(", ") || "runtime discovery"})`));
+  const executionArchitecture = plan.semanticDeltas.flatMap((delta) => delta.architectureChanges.map((item) => `- ${item.fact} — ${item.rationale} (${item.references.join(", ") || "runtime discovery"})`));
+  const outcomes = plan.semanticDeltas.flatMap((delta) => delta.accomplished);
+  const invalidated = plan.semanticDeltas.flatMap((delta) => delta.invalidatedAssumptions);
+  const deviations = plan.semanticDeltas.flatMap((delta) => delta.planDeviations);
+  const risks = [...plan.risks, ...plan.semanticDeltas.flatMap((delta) => delta.newRisks)];
+  const decisionsNeeded = plan.semanticDeltas.flatMap((delta) => delta.userDecisionNeeded);
+  const requirements = plan.requirements.map((item) => `${item.id}: ${item.text}`);
+  const evidence = plan.repositoryEvidence.map((item) => `${item.claim} (${item.references.join(", ")})`);
+  return `Goal: ${plan.goal}\nRequirements:\n${list(requirements)}\nConstraints:\n${list(plan.constraints)}\nOut of scope:\n${list(plan.outOfScope)}\nAssumptions:\n${list(plan.assumptions)}\nRepository evidence:\n${list(evidence)}\nApproved decisions:\n${decisions.join("\n") || "- none"}\nApproved architecture:\n${architecture.join("\n") || "- none"}\nExecution decisions:\n${executionDecisions.join("\n") || "- none"}\nExecution architecture discoveries:\n${executionArchitecture.join("\n") || "- none"}\nCompleted semantic outcomes:\n${list(outcomes)}\nInvalidated assumptions:\n${list(invalidated)}\nPlan deviations:\n${list(deviations)}\nRisks:\n${list(risks)}\nUser decisions needed:\n${list(decisionsNeeded)}`;
+}
+
+export function renderSemanticDelta(delta: SemanticDelta): string {
+  const section = (title: string, values: string[]) => values.length > 0 ? `${title}:\n${values.map((item) => `- ${item}`).join("\n")}` : "";
+  return [
+    section("Accomplished", delta.accomplished),
+    section("Architecture changes", delta.architectureChanges.map((item) => `${item.fact} — ${item.rationale} (${item.references.join(", ")})`)),
+    section("Decisions", delta.decisions.map((item) => `${item.text} — ${item.rationale} (${item.references.join(", ")})`)),
+    section("Invalidated assumptions", delta.invalidatedAssumptions),
+    section("Plan deviations", delta.planDeviations),
+    section("New risks", delta.newRisks),
+    section("User decisions needed", delta.userDecisionNeeded),
+  ].filter(Boolean).join("\n") || "No strategic context changes.";
 }
 
 export function renderPlanMarkdown(plan: PlanDocument): string {
-  const renderList = (values: string[], empty: string) => values.map((value) => `- ${value}`).join("\n") || `- ${empty}`;
-  const renderTask = (task: PlanTask) => {
-    const check = task.status === "completed" ? "x" : " ";
-    const lines = [`- [${check}] ${task.id}. ${task.title}`, `  - Wave: ${task.wave}`, `  - What: ${task.details}`];
-    if (task.ownedPaths.length > 0) lines.push(`  - Owns: ${task.ownedPaths.join(", ")}`);
-    if (task.dependsOn.length > 0) lines.push(`  - Depends on: ${task.dependsOn.join(", ")}`);
-    for (const reference of task.references) lines.push(`  - Reference: ${reference}`);
-    for (const criterion of task.acceptance) lines.push(`  - Acceptance: ${criterion}`);
-    for (const verification of task.verification) lines.push(`  - Verify: ${verification}`);
-    return lines.join("\n");
-  };
-
-  const implementation = plan.tasks.filter((task) => task.kind === "implementation").map(renderTask).join("\n\n");
-  const verification = plan.tasks.filter((task) => task.kind === "verification").map(renderTask).join("\n\n");
-  return `<!-- Generated from ${plan.slug}.json by the Plan -> Execute extension. Edit through /plan, not by hand. -->\n\n# Plan: ${plan.title}\n\n- Revision: ${plan.revision}\n\n## Goal\n${plan.goal}\n\n## Constraints\n${renderList(plan.constraints, "None")}\n\n## Out of Scope\n${renderList(plan.outOfScope, "None")}\n\n## Pre-plan Analysis\n${plan.analysis}\n\n## TODOs\n${implementation}\n\n## Final Verification Wave\n${verification}\n\n## Review\n- Verdict: ${plan.review.verdict}\n- Rounds: ${plan.review.rounds}\n${renderList(plan.review.findings, "No findings recorded")}\n`;
+  const tasks = plan.tasks.map((task) => {
+    const mark = task.status === "completed" ? "x" : " ";
+    const checks = [...task.workerChecks.map((check) => `worker:${check.id} \`${[check.program, ...check.args].join(" ")}\``), ...task.waveChecks.map((check) => `wave:${check.id} \`${[check.program, ...check.args].join(" ")}\``)].join("; ");
+    return `- [${mark}] ${task.id}. ${task.title}\n  - Outcome: ${task.outcome}\n  - Requirements: ${task.satisfies.join(", ")}\n  - Depends on: ${task.dependsOn.join(", ") || "none"}\n  - Expected paths: ${task.expectedPaths.join(", ")}\n  - Acceptance: ${task.acceptance.join("; ")}\n  - Checks: ${checks}`;
+  }).join("\n");
+  return `# ${plan.title}\n\nGoal: ${plan.goal}\n\nSpec hash: \`${plan.specHash}\`\n\n## Strategic Context\n\n${renderStrategicContext(plan)}\n\n## Tasks\n\n${tasks}\n\n## Final Checks\n\n${plan.finalChecks.map((check) => `- ${check.id}: \`${[check.program, ...check.args].join(" ")}\``).join("\n")}\n\n## Momus\n\nVerdict: ${plan.momus.verdict}\n`;
 }
 
 export function workPaths(root: string) {
   const workDir = path.join(root, ".pi", "work");
   return {
     workDir,
+    briefsDir: path.join(workDir, "briefs"),
     plansDir: path.join(workDir, "plans"),
-    statePath: path.join(workDir, "state.json"),
-    ledgerPath: path.join(workDir, "ledger.jsonl"),
     evidenceDir: path.join(workDir, "evidence"),
+    statePath: path.join(workDir, "state.json"),
+    runtimePath: path.join(workDir, "runtime.json"),
+    lockPath: path.join(workDir, ".lock"),
   };
 }
 
-async function atomicWrite(filePath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  const temporary = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  await fs.writeFile(temporary, content, { encoding: "utf8", mode: 0o600 });
+async function atomicWrite(filePath: string, value: unknown): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const temporary = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  await fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`);
   await fs.rename(temporary, filePath);
 }
 
-export async function withWorkLock<T>(root: string, operation: () => Promise<T>): Promise<T> {
-  const lockPath = path.join(workPaths(root).workDir, "mutation.lock");
-  await fs.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
+export async function withWorkLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
+  const { workDir, lockPath } = workPaths(root);
+  await fs.mkdir(workDir, { recursive: true });
   let handle;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      handle = await fs.open(lockPath, "wx", 0o600);
-      await handle.writeFile(`${process.pid}\n`);
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const owner = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10);
-      let alive = Number.isFinite(owner);
-      if (alive) {
-        try {
-          process.kill(owner, 0);
-        } catch {
-          alive = false;
-        }
-      }
-      if (alive || attempt > 0) throw new Error("Plan -> Execute state is being updated by another process");
-      await fs.unlink(lockPath).catch(() => undefined);
-    }
-  }
-  if (!handle) throw new Error("failed to acquire Plan -> Execute mutation lock");
   try {
-    return await operation();
+    handle = await fs.open(lockPath, "wx");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Plan -> Execute state is locked by another operation");
+    throw error;
+  }
+  try {
+    return await fn();
   } finally {
     await handle.close();
-    await fs.unlink(lockPath).catch(() => undefined);
+    await fs.rm(lockPath, { force: true });
   }
 }
 
+function assertBrief(value: PlanningBrief): PlanningBrief {
+  if (value.version !== 2 || !value.slug || !value.briefHash || !Array.isArray(value.requirements) || value.requirements.length === 0 || !Array.isArray(value.decisions) || !value.metis) {
+    throw new Error("invalid Planning Brief");
+  }
+  if (!(value.metis.readiness === "pending" || value.metis.readiness === "ready" || value.metis.readiness === "blocked")) throw new Error("invalid Metis readiness");
+  const { metis: _metis, revision: _revision, briefHash: _hash, version: _version, slug: _slug, createdAt: _created, updatedAt: _updated, ...spec } = value;
+  if (contentHash(spec) !== value.briefHash) throw new Error("Planning Brief hash mismatch");
+  return value;
+}
+
+function assertPlan(value: PlanDocument): PlanDocument {
+  if (value.version !== 2 || !value.slug || !value.specHash || !Array.isArray(value.tasks) || value.tasks.length === 0 || !Array.isArray(value.finalChecks) || !value.momus) {
+    throw new Error("invalid Plan document");
+  }
+  const ids = new Set(value.tasks.map((task) => task.id));
+  if (ids.size !== value.tasks.length) throw new Error("Plan contains duplicate task IDs");
+  for (const task of value.tasks) {
+    if (!(task.status === "pending" || task.status === "implemented" || task.status === "completed")) throw new Error(`invalid status for ${task.id}`);
+    if (!Array.isArray(task.expectedPaths) || !Array.isArray(task.workerChecks) || task.workerChecks.length === 0) throw new Error(`invalid task ${task.id}`);
+    if (task.dependsOn.some((dependency) => !ids.has(dependency))) throw new Error(`${task.id} has an unknown dependency`);
+  }
+  if (contentHash(planSpec(value)) !== value.specHash) throw new Error("Plan spec hash mismatch");
+  return value;
+}
+
+export async function writeBrief(root: string, brief: PlanningBrief): Promise<{ jsonPath: string }> {
+  const jsonPath = path.join(workPaths(root).briefsDir, `${brief.slug}.json`);
+  await atomicWrite(jsonPath, brief);
+  return { jsonPath };
+}
+
+export async function readBrief(root: string, slug: string): Promise<PlanningBrief> {
+  const parsed = JSON.parse(await fs.readFile(path.join(workPaths(root).briefsDir, `${slugify(slug)}.json`), "utf8")) as PlanningBrief;
+  return assertBrief(parsed);
+}
+
 export async function writePlan(root: string, plan: PlanDocument): Promise<{ jsonPath: string; markdownPath: string }> {
-  const { plansDir } = workPaths(root);
-  const jsonPath = path.join(plansDir, `${plan.slug}.json`);
-  const markdownPath = path.join(plansDir, `${plan.slug}.md`);
-  await atomicWrite(jsonPath, `${JSON.stringify(plan, null, 2)}\n`);
-  await atomicWrite(markdownPath, renderPlanMarkdown(plan));
+  const paths = workPaths(root);
+  const jsonPath = path.join(paths.plansDir, `${plan.slug}.json`);
+  const markdownPath = path.join(paths.plansDir, `${plan.slug}.md`);
+  await atomicWrite(jsonPath, plan);
+  await fs.writeFile(markdownPath, renderPlanMarkdown(plan));
   return { jsonPath, markdownPath };
 }
 
 export async function readPlan(root: string, slug: string): Promise<PlanDocument> {
-  const filePath = path.join(workPaths(root).plansDir, `${slugify(slug)}.json`);
-  const plan = JSON.parse(await fs.readFile(filePath, "utf8")) as PlanDocument;
-  if (plan.version !== 1 || plan.slug !== slugify(slug) || !Array.isArray(plan.tasks)) throw new Error(`invalid plan ${slug}`);
-  plan.revision ??= 1;
-  plan.reviewToken ??= plan.updatedAt;
-  return plan;
+  const parsed = JSON.parse(await fs.readFile(path.join(workPaths(root).plansDir, `${slugify(slug)}.json`), "utf8")) as PlanDocument;
+  return assertPlan(parsed);
 }
 
 export async function listPlans(root: string): Promise<PlanDocument[]> {
   const { plansDir } = workPaths(root);
-  let names: string[];
-  try {
-    names = await fs.readdir(plansDir);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
+  const entries = await fs.readdir(plansDir).catch(() => [] as string[]);
+  const plans: PlanDocument[] = [];
+  for (const entry of entries.filter((name) => name.endsWith(".json"))) {
+    try { plans.push(await readPlan(root, entry.slice(0, -5))); }
+    catch { /* Ignore legacy or malformed plans during discovery; explicit reads still report the error. */ }
   }
-  const plans = await Promise.all(
-    names.filter((name) => name.endsWith(".json")).map((name) => readPlan(root, name.slice(0, -5))),
-  );
-  return plans.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return plans;
 }
 
-export async function writeWorkState(root: string, state: WorkState): Promise<void> {
-  await atomicWrite(workPaths(root).statePath, `${JSON.stringify(state, null, 2)}\n`);
+export async function writeRuntime(root: string, plan: PlanDocument, state: WorkState): Promise<void> {
+  const checkpoint: RuntimeCheckpoint = { version: 2, plan, state, writtenAt: new Date().toISOString() };
+  await atomicWrite(workPaths(root).runtimePath, checkpoint);
+  await writePlan(root, plan);
+  await writeWorkState(root, state);
 }
 
-export async function readWorkState(root: string): Promise<WorkState | undefined> {
+export async function readRuntime(root: string): Promise<RuntimeCheckpoint | undefined> {
   try {
-    const state = JSON.parse(await fs.readFile(workPaths(root).statePath, "utf8")) as WorkState;
-    if (state.version !== 1 || !state.planSlug || !state.projectRoot) throw new Error("invalid work state");
-    return state;
+    const checkpoint = JSON.parse(await fs.readFile(workPaths(root).runtimePath, "utf8")) as RuntimeCheckpoint;
+    if (checkpoint.version !== 2 || !checkpoint.plan || !checkpoint.state) throw new Error("invalid runtime checkpoint");
+    const plan = assertPlan(checkpoint.plan);
+    if (checkpoint.state.version !== 2 || checkpoint.state.planSlug !== plan.slug || checkpoint.state.planHash !== plan.specHash) throw new Error("runtime checkpoint identity mismatch");
+    return { ...checkpoint, plan };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
 }
 
-export async function appendLedger(root: string, record: CompletionEvidence & { planSlug: string; sessionId?: string }): Promise<void> {
-  const { ledgerPath } = workPaths(root);
-  await fs.mkdir(path.dirname(ledgerPath), { recursive: true, mode: 0o700 });
-  await fs.appendFile(ledgerPath, `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+export async function writeWorkState(root: string, state: WorkState): Promise<void> {
+  await atomicWrite(workPaths(root).statePath, state);
+}
+
+export async function readWorkState(root: string): Promise<WorkState | undefined> {
+  try {
+    const state = JSON.parse(await fs.readFile(workPaths(root).statePath, "utf8")) as WorkState;
+    if (state.version !== 2 || !state.planSlug || !state.planHash || !(["planned", "active", "paused", "completed", "stopped"] as unknown[]).includes(state.status) || !(["dispatch", "verify"] as unknown[]).includes(state.stage) || !Array.isArray(state.receipts)) {
+      throw new Error("invalid work state");
+    }
+    return state;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }

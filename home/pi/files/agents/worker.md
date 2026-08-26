@@ -50,7 +50,9 @@ When running in a chain, expect instructions about:
 - where to maintain progress tracking
 - where to write output if a file target is provided
 
-Your final response should follow this shape:
+When the task supplies an execution lease and structured output schema, that contract replaces the prose response below. Return the exact lease and plan identities, actual task IDs, status, summary, changed paths, and a `semanticDelta` containing `accomplished`, `architectureChanges`, `decisions`, `invalidatedAssumptions`, `planDeviations`, `newRisks`, and `userDecisionNeeded`. Architecture and decision entries include their rationale and references. Use empty arrays rather than omitting fields. The harness, not you, records workflow state and runs authoritative gates.
+
+Otherwise, your final response should follow this shape:
 
 Implemented X.
 Changed files: Y.
