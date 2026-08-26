@@ -81,16 +81,7 @@ function normalizePerspective(item) {
   if (instruction.length < 20 || instruction.length > 500) return null;
   return { key: key, title: title, instruction: instruction };
 }
-const first = await runs.all([
-  {
-    key: "perspective-planner",
-    agent: "oracle",
-    model: "openai-codex/gpt-5.6-sol",
-    thinking: "max",
-    context: "fresh",
-    task: "Select 6-8 distinct, task-specific reasoning perspectives for GPT-5.6 Luna oracle calls. Select, adapt, combine, or replace catalog examples; invent a better perspective when the target warrants it. Avoid overlapping generic labels. Each instruction must identify a concrete question or failure class for this target. Use the required structured output only; this task-specific contract overrides the oracle prose format.\\n\\nCatalog:\\n" + catalog.map(function (item) { return "- " + item; }).join("\\n") + "\\n\\nTarget:\\n" + target,
-    outputSchema: perspectiveSchema
-  },
+const independentPromise = runs.all([
   { key: "oracle-sol", agent: "oracle", model: "openai-codex/gpt-5.6-sol", thinking: "max", context: "fresh", task: oracleTask("first-principles derivation and internal consistency") },
   { key: "oracle-fable", agent: "oracle", model: "anthropic/claude-fable-5", thinking: "max", context: "fresh", task: oracleTask("intent, ambiguity, human constraints, and reframing") },
   { key: "oracle-gemini", agent: "oracle", model: "openrouter/google/gemini-3.7-flash", thinking: "high", context: "fresh", task: oracleTask("broad hypothesis search and cross-domain interactions") },
@@ -98,6 +89,14 @@ const first = await runs.all([
   { key: "oracle-grok", agent: "oracle", model: "openrouter/x-ai/grok-4.6", thinking: "high", context: "fresh", task: oracleTask("adversarial challenge, counterexamples, and uncomfortable failure modes") },
   { key: "oracle-glm", agent: "oracle", model: "openrouter/z-ai/glm-5.3", thinking: "high", context: "fresh", task: oracleTask("alternative decomposition and an independent model-family check") }
 ]);
+let planner = await runs.run("perspective-planner", {
+  agent: "oracle",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  context: "fresh",
+  task: "Select 6-8 distinct, task-specific reasoning perspectives for GPT-5.6 Luna oracle calls. Select, adapt, combine, or replace catalog examples; invent a better perspective when the target warrants it. Avoid overlapping generic labels. Each instruction must identify a concrete question or failure class for this target. Use the required structured output only; this task-specific contract overrides the oracle prose format.\\n\\nCatalog:\\n" + catalog.map(function (item) { return "- " + item; }).join("\\n") + "\\n\\nTarget:\\n" + target,
+  outputSchema: perspectiveSchema
+});
 function validatePlanner(result) {
   const errors = [];
   if (!result.ok) errors.push("planner run failed: " + (result.error || result.output));
@@ -123,7 +122,6 @@ function validatePlanner(result) {
   }
   return { perspectives: perspectives, errors: errors };
 }
-let planner = first[0];
 let selection = validatePlanner(planner);
 for (let revision = 1; selection.errors.length > 0 && revision <= 2; revision++) {
   if (!planner.runId) throw new Error("Perspective planner output was rejected but cannot be returned for revision: " + selection.errors.join("; "));
@@ -154,7 +152,7 @@ const lunaSynthesis = await runs.run("luna-synthesis", {
   context: "fresh",
   task: "Synthesize the GPT-5.6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults)
 });
-const independentResults = first.slice(1);
+const independentResults = await independentPromise;
 const finalSynthesis = await runs.run("final-synthesis", {
   agent: "oracle",
   model: "openai-codex/gpt-5.6-sol",

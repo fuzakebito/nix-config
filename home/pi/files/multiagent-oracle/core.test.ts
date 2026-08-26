@@ -5,7 +5,9 @@ describe("multiagent oracle workflow", () => {
   test("builds extension-owned staged oracle orchestration", () => {
     const script = buildWorkflowScript("Review auth refresh behavior");
 
-    expect(script).toContain('key: "perspective-planner"');
+    expect(script).toContain('runs.run("perspective-planner"');
+    expect(script).toContain("const independentPromise = runs.all");
+    expect(script.indexOf("const lunaResults = await runs.all")).toBeLessThan(script.indexOf("const independentResults = await independentPromise"));
     expect(script.match(/agent: "oracle"/g)?.length).toBeGreaterThanOrEqual(10);
     expect(script).toContain('model: "openai-codex/gpt-5.6-luna"');
     expect(script).toContain('runs.run("luna-synthesis"');
