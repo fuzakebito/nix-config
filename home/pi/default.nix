@@ -38,7 +38,13 @@ let
       "${config.home.homeDirectory}/.pi/agent/multiagent-oracle/index.ts"
     ];
     packages = map (name: "${extensionRoot}/${name}") extensionNames;
-    subagents.agentOverrides.oracle.extensions = [ ];
+    subagents.agentOverrides = {
+      oracle.extensions = [ ];
+      metis.extensions = [ ];
+      momus.extensions = [ ];
+      "plan-worker".extensions = [ ];
+      worker.extensions = [ ];
+    };
   };
 in
 {

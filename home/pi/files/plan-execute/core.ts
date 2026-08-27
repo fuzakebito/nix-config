@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 export type ReviewVerdict = "pending" | "approved" | "rejected";
 export type TaskStatus = "pending" | "implemented" | "completed";
-export type WorkStatus = "planned" | "active" | "paused" | "completed" | "stopped";
+export type WorkStatus = "planned" | "active" | "paused" | "completed" | "stopped" | "abandoned";
 export type WorkStage = "dispatch" | "verify";
 
 export interface Requirement {
@@ -150,6 +151,7 @@ export interface PlanDocument {
 
 export interface WorkerOutput {
   leaseId: string;
+  attemptId: string;
   planHash: string;
   taskIds: string[];
   status: "implemented" | "blocked";
@@ -179,14 +181,31 @@ export interface ExecutionLease {
   createdAt: string;
 }
 
+export interface WorkerAttempt {
+  id: string;
+  number: number;
+  status: "reserved" | "running" | "unresolved" | "terminal";
+  toolCallId?: string;
+  rootRunId?: string;
+  childRunId?: string;
+  success?: boolean;
+  consumed?: boolean;
+  startedAt: string;
+  endedAt?: string;
+}
+
 export interface WorkState {
   version: 2;
+  generation: number;
+  ownerId?: string;
   planSlug: string;
   planHash: string;
   status: WorkStatus;
   stage: WorkStage;
   lease?: ExecutionLease;
+  workerAttempt?: WorkerAttempt;
   workerRunId?: string;
+  verificationAttempt?: { id: string; status: "running" | "terminal"; startedAt: string; endedAt?: string };
   receipts: CheckReceipt[];
   lastFailure?: string;
   startedAt?: string;
@@ -233,9 +252,11 @@ export function slugify(value: string): string {
 }
 
 function safeRelative(value: string, label: string): string {
-  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
-  if (!normalized || normalized === "." || path.isAbsolute(normalized) || normalized.split("/").includes("..")) {
-    throw new Error(`${label} has unsafe path ${value || "(empty)"}`);
+  const cleaned = value.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  const normalized = path.posix.normalize(cleaned);
+  const reserved = normalized === ".git" || normalized.startsWith(".git/") || normalized === ".pi/work" || normalized.startsWith(".pi/work/");
+  if (!normalized || normalized === "." || normalized.includes("\0") || path.isAbsolute(normalized) || normalized.split("/").includes("..") || reserved) {
+    throw new Error(`${label} has unsafe or reserved path ${value || "(empty)"}`);
   }
   return normalized;
 }
@@ -247,15 +268,20 @@ function normalizeCheck(check: Omit<CheckSpec, "artifacts"> & { artifacts?: stri
   const program = check.program.trim();
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(id) || id.includes("..") || !program) throw new Error(`${owner} check requires a safe id and program`);
   if (program.includes("/") || program.includes("\\") || FORBIDDEN_CHECK_PROGRAMS.has(program)) throw new Error(`${owner} check ${id} uses a forbidden program`);
-  if (program === "git" && (!["diff", "status", "show", "log", "grep", "ls-files"].includes(check.args[0] ?? "") || check.args.some((arg) => arg === "-o" || arg.startsWith("--output")))) throw new Error(`${owner} check ${id} uses an unsafe Git command`);
+  const unsafeGitArg = (arg: string) => arg === "--ext-diff" || arg === "--textconv" || arg === "--no-textconv" || arg === "--paginate" || arg === "-p" || arg.startsWith("--exec-path") || arg.startsWith("--config-env") || arg.startsWith("--output") || arg === "-o" || arg.startsWith("--no-pager=");
+  if (program === "git" && (!["diff", "status", "show", "log", "grep", "ls-files"].includes(check.args[0] ?? "") || check.args.some(unsafeGitArg))) throw new Error(`${owner} check ${id} uses an unsafe Git command`);
   if (program === "nix" && !["build", "eval", "flake"].includes(check.args[0] ?? "")) throw new Error(`${owner} check ${id} uses an unsupported Nix command`);
+  if (program === "nix" && check.args.some((arg) => arg === "-o" || arg === "--out-link" || arg.startsWith("--out-link=") || arg === "--write-to" || arg.startsWith("--write-to=") || arg === "--write-lock-file")) throw new Error(`${owner} check ${id} uses a mutating Nix output or lock option`);
+  if (program === "nix" && check.args[0] === "flake" && !["check", "show", "metadata"].includes(check.args[1] ?? "")) throw new Error(`${owner} check ${id} uses a mutating or unsupported Nix flake command`);
   if (program === "nix" && check.args[0] === "build" && !check.args.includes("--no-link")) throw new Error(`${owner} check ${id} must use nix build --no-link`);
   const evalFlags = new Set(["-e", "-c", "-p", "--eval", "--print"]);
   if (["bun", "node", "deno", "python", "python3", "ruby", "perl"].includes(program) && check.args.some((arg) => evalFlags.has(arg))) throw new Error(`${owner} check ${id} cannot execute inline code`);
+  const args = check.args.map((arg) => String(arg));
+  if (program === "nix" && !args.includes("--no-write-lock-file")) args.push("--no-write-lock-file");
   return {
     id,
     program,
-    args: check.args.map((arg) => String(arg)),
+    args,
     cwd: check.cwd ? safeRelative(check.cwd, `${owner} check ${id} cwd`) : undefined,
     artifacts: cleanList(check.artifacts).map((artifact) => safeRelative(artifact, `${owner} check ${id} artifact`)),
   };
@@ -266,6 +292,12 @@ function parseObject<T>(output: string, label: string): T {
   const end = output.lastIndexOf("}");
   if (start < 0 || end < start) throw new Error(`${label} output is not a JSON object`);
   return JSON.parse(output.slice(start, end + 1)) as T;
+}
+
+function assertKeys(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
+  const extra = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (extra.length > 0) throw new Error(`${label} has unsupported fields: ${extra.join(", ")}`);
 }
 
 export function createPlanningBrief(input: {
@@ -320,11 +352,12 @@ export function createPlanningBrief(input: {
 
 export function parseMetisOutput(output: string): MetisOutput {
   const parsed = parseObject<MetisOutput>(output, "Metis");
+  assertKeys(parsed, ["briefPath", "briefHash", "readiness", "blockingGaps", "nonBlockingRisks", "directives"], "Metis output");
   if (!parsed.briefPath?.trim() || !parsed.briefHash?.trim()) throw new Error("Metis output is missing briefPath or briefHash");
   if (!(["ready", "blocked"] as unknown[]).includes(parsed.readiness)) throw new Error("Metis output has invalid readiness");
   if (!Array.isArray(parsed.blockingGaps) || !Array.isArray(parsed.nonBlockingRisks) || !Array.isArray(parsed.directives)) throw new Error("Metis output has invalid arrays");
   const gapTypes = new Set(["user-decision", "missing-research", "unsupported-assumption", "scope-conflict", "missing-requirement", "untestable-outcome"]);
-  if (parsed.blockingGaps.some((gap) => !gap || !gapTypes.has(gap.type) || !gap.issue?.trim() || !gap.requiredAction?.trim() || !gap.reason?.trim())) throw new Error("Metis output has an invalid blocking gap");
+  if (parsed.blockingGaps.some((gap) => { try { assertKeys(gap, ["type", "issue", "requiredAction", "reason"], "Metis blocking gap"); return !gapTypes.has(gap.type) || !gap.issue?.trim() || !gap.requiredAction?.trim() || !gap.reason?.trim(); } catch { return true; } })) throw new Error("Metis output has an invalid blocking gap");
   if (parsed.nonBlockingRisks.some((item) => typeof item !== "string") || parsed.directives.some((item) => typeof item !== "string")) throw new Error("Metis output has invalid text entries");
   if (parsed.readiness === "ready" && parsed.blockingGaps.length > 0) throw new Error("ready Metis output cannot contain blocking gaps");
   if (parsed.readiness === "blocked" && parsed.blockingGaps.length === 0) throw new Error("blocked Metis output requires blocking gaps");
@@ -366,7 +399,7 @@ function planSpec(plan: Pick<PlanDocument, "title" | "goal" | "briefSlug" | "bri
   };
 }
 
-export function createPlan(input: {
+export interface PlanInput {
   title: string;
   goal: string;
   architecture?: Array<{ fact: string; references: string[] }>;
@@ -384,7 +417,19 @@ export function createPlan(input: {
     waveChecks?: Array<Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }>;
   }>;
   finalChecks: Array<Omit<CheckSpec, "artifacts"> & { artifacts?: string[] }>;
-}, brief: PlanningBrief, previous?: PlanDocument): PlanDocument {
+}
+
+export interface PlanPatchInput {
+  expectedHash: string;
+  title?: string;
+  goal?: string;
+  architecture?: Array<{ fact: string; references: string[] }>;
+  risks?: string[];
+  taskPatches?: Array<{ id: string } & Partial<PlanInput["tasks"][number]>>;
+  finalChecks?: PlanInput["finalChecks"];
+}
+
+export function createPlan(input: PlanInput, brief: PlanningBrief, previous?: PlanDocument): PlanDocument {
   if (brief.metis.readiness !== "ready" || brief.metis.briefHash !== brief.briefHash) throw new Error("current Planning Brief requires Metis READY before plan generation");
   if (brief.openQuestions.length > 0) throw new Error("Planning Brief still has open questions");
   const title = input.title.trim();
@@ -404,6 +449,9 @@ export function createPlan(input: {
     const expectedPaths = cleanList(task.expectedPaths).map((value) => safeRelative(value, id));
     if (expectedPaths.length === 0) throw new Error(`${id} requires expected paths`);
     const workerChecks = task.workerChecks.map((check) => normalizeCheck(check, id));
+    const waveChecks = (task.waveChecks ?? []).map((check) => normalizeCheck(check, `${id} wave`));
+    const outsideArtifacts = [...workerChecks, ...waveChecks].flatMap((check) => check.artifacts).filter((artifact) => !expectedPaths.some((allowed) => artifact === allowed || artifact.startsWith(`${allowed}/`)));
+    if (outsideArtifacts.length > 0) throw new Error(`${id} check artifacts are outside expected paths: ${outsideArtifacts.join(", ")}`);
     if (workerChecks.length === 0) throw new Error(`${id} requires worker checks`);
     return {
       id,
@@ -416,7 +464,7 @@ export function createPlan(input: {
       expectedPaths,
       acceptance,
       workerChecks,
-      waveChecks: (task.waveChecks ?? []).map((check) => normalizeCheck(check, `${id} wave`)),
+      waveChecks,
       status: "pending",
     };
   });
@@ -431,6 +479,9 @@ export function createPlan(input: {
     if (!tasks.some((task) => task.satisfies.includes(requirement))) throw new Error(`requirement ${requirement} is not satisfied by any task`);
   }
   const finalChecks = input.finalChecks.map((check) => normalizeCheck(check, "final"));
+  const planPaths = tasks.flatMap((task) => task.expectedPaths);
+  const outsideFinalArtifacts = finalChecks.flatMap((check) => check.artifacts).filter((artifact) => !planPaths.some((allowed) => artifact === allowed || artifact.startsWith(`${allowed}/`)));
+  if (outsideFinalArtifacts.length > 0) throw new Error(`final check artifacts are outside plan paths: ${outsideFinalArtifacts.join(", ")}`);
   if (finalChecks.length === 0) throw new Error("at least one final check is required");
   const checkIds = [...tasks.flatMap((task) => [...task.workerChecks, ...task.waveChecks]), ...finalChecks].map((check) => check.id);
   if (new Set(checkIds).size !== checkIds.length) throw new Error("check IDs must be unique across the plan");
@@ -463,12 +514,36 @@ export function createPlan(input: {
   return { ...base, specHash: contentHash(planSpec(base as PlanDocument)) };
 }
 
+export function patchPlan(plan: PlanDocument, brief: PlanningBrief, patch: PlanPatchInput): PlanDocument {
+  if (patch.expectedHash !== plan.specHash) throw new Error("plan patch expectedHash is stale");
+  if (plan.tasks.some((task) => task.status !== "pending")) throw new Error("cannot patch a plan after execution has started");
+  const patches = new Map((patch.taskPatches ?? []).map((item) => [item.id.trim(), item]));
+  if (patches.size !== (patch.taskPatches ?? []).length || [...patches].some(([id]) => !plan.tasks.some((task) => task.id === id))) throw new Error("plan patch contains a duplicate or unknown task ID");
+  const hasChange = patch.title !== undefined || patch.goal !== undefined || patch.architecture !== undefined || patch.risks !== undefined || patch.finalChecks !== undefined || patches.size > 0;
+  if (!hasChange) throw new Error("plan patch contains no changes");
+  const tasks: PlanInput["tasks"] = plan.tasks.map(({ id, status: _status, completedAt: _completedAt, ...task }) => {
+    const taskPatch = patches.get(id);
+    if (!taskPatch) return task;
+    const { id: _id, ...changes } = taskPatch;
+    return { ...task, ...changes };
+  });
+  return createPlan({
+    title: patch.title ?? plan.title,
+    goal: patch.goal ?? plan.goal,
+    architecture: patch.architecture ?? plan.architecture,
+    risks: patch.risks ?? plan.risks,
+    tasks,
+    finalChecks: patch.finalChecks ?? plan.finalChecks,
+  }, brief, plan);
+}
+
 export function parseMomusOutput(output: string): MomusOutput {
   const parsed = parseObject<MomusOutput>(output, "Momus");
+  assertKeys(parsed, ["planPath", "planHash", "verdict", "blockingFindings", "nonBlockingNotes"], "Momus output");
   if (!parsed.planPath?.trim() || !parsed.planHash?.trim()) throw new Error("Momus output is missing planPath or planHash");
   if (!(["approved", "rejected"] as unknown[]).includes(parsed.verdict)) throw new Error("Momus output has invalid verdict");
   if (!Array.isArray(parsed.blockingFindings) || !Array.isArray(parsed.nonBlockingNotes)) throw new Error("Momus output has invalid arrays");
-  if (parsed.blockingFindings.some((finding) => !finding || !Array.isArray(finding.taskIds) || finding.taskIds.some((item) => typeof item !== "string") || !finding.issue?.trim() || !finding.reason?.trim() || !finding.requiredCorrection?.trim())) throw new Error("Momus output has an invalid blocking finding");
+  if (parsed.blockingFindings.some((finding) => { try { assertKeys(finding, ["requirementId", "taskIds", "issue", "reason", "requiredCorrection"], "Momus finding"); return (finding.requirementId !== undefined && typeof finding.requirementId !== "string") || !Array.isArray(finding.taskIds) || finding.taskIds.some((item) => typeof item !== "string") || !finding.issue?.trim() || !finding.reason?.trim() || !finding.requiredCorrection?.trim(); } catch { return true; } })) throw new Error("Momus output has an invalid blocking finding");
   if (parsed.nonBlockingNotes.some((item) => typeof item !== "string")) throw new Error("Momus output has invalid notes");
   if (parsed.verdict === "approved" && parsed.blockingFindings.length > 0) throw new Error("approved Momus output cannot contain blocking findings");
   if (parsed.verdict === "rejected" && parsed.blockingFindings.length === 0) throw new Error("rejected Momus output requires blocking findings");
@@ -520,13 +595,15 @@ export function createLease(plan: PlanDocument, baseline: Record<string, string>
 
 export function parseWorkerOutput(output: string): WorkerOutput {
   const parsed = parseObject<WorkerOutput>(output, "worker");
-  if (!parsed.leaseId?.trim() || !parsed.planHash?.trim() || !Array.isArray(parsed.taskIds)) throw new Error("worker output is missing lease identity");
+  assertKeys(parsed, ["leaseId", "attemptId", "planHash", "taskIds", "status", "summary", "changedPaths", "semanticDelta", "blocker"], "worker output");
+  assertKeys(parsed.semanticDelta, ["accomplished", "architectureChanges", "decisions", "invalidatedAssumptions", "planDeviations", "newRisks", "userDecisionNeeded"], "worker semantic delta");
+  if (!parsed.leaseId?.trim() || !parsed.attemptId?.trim() || !parsed.planHash?.trim() || !Array.isArray(parsed.taskIds) || parsed.taskIds.some((item) => typeof item !== "string")) throw new Error("worker output is missing execution identity");
   if (!(["implemented", "blocked"] as unknown[]).includes(parsed.status)) throw new Error("worker output has invalid status");
-  if (!parsed.summary?.trim() || !Array.isArray(parsed.changedPaths) || parsed.changedPaths.some((item) => typeof item !== "string") || !parsed.semanticDelta) throw new Error("worker output is incomplete");
+  if (!parsed.summary?.trim() || (parsed.blocker !== undefined && typeof parsed.blocker !== "string") || !Array.isArray(parsed.changedPaths) || parsed.changedPaths.some((item) => typeof item !== "string") || !parsed.semanticDelta) throw new Error("worker output is incomplete");
   const delta = parsed.semanticDelta;
   if (![delta.accomplished, delta.invalidatedAssumptions, delta.planDeviations, delta.newRisks, delta.userDecisionNeeded].every((items) => Array.isArray(items) && items.every((item) => typeof item === "string"))) throw new Error("worker semantic delta has invalid text arrays");
-  if (!Array.isArray(delta.architectureChanges) || delta.architectureChanges.some((item) => !item?.fact?.trim() || !item.rationale?.trim() || !Array.isArray(item.references))) throw new Error("worker semantic delta has invalid architecture changes");
-  if (!Array.isArray(delta.decisions) || delta.decisions.some((item) => !item?.text?.trim() || !item.rationale?.trim() || !Array.isArray(item.references))) throw new Error("worker semantic delta has invalid decisions");
+  if (!Array.isArray(delta.architectureChanges) || delta.architectureChanges.some((item) => { try { assertKeys(item, ["fact", "rationale", "references"], "architecture change"); return !item.fact?.trim() || !item.rationale?.trim() || !Array.isArray(item.references) || item.references.some((reference) => typeof reference !== "string"); } catch { return true; } })) throw new Error("worker semantic delta has invalid architecture changes");
+  if (!Array.isArray(delta.decisions) || delta.decisions.some((item) => { try { assertKeys(item, ["text", "rationale", "references"], "worker decision"); return !item.text?.trim() || !item.rationale?.trim() || !Array.isArray(item.references) || item.references.some((reference) => typeof reference !== "string"); } catch { return true; } })) throw new Error("worker semantic delta has invalid decisions");
   return parsed;
 }
 
@@ -571,8 +648,8 @@ export function recordExecutionDecision(plan: PlanDocument, question: string, de
   return { ...plan, semanticDeltas, updatedAt: recordedAt };
 }
 
-export function importWorkerOutput(plan: PlanDocument, lease: ExecutionLease, output: WorkerOutput, actualChangedPaths: string[]): PlanDocument {
-  if (output.leaseId !== lease.id || output.planHash !== lease.planHash || output.planHash !== plan.specHash) throw new Error("worker output has stale lease identity");
+export function importWorkerOutput(plan: PlanDocument, lease: ExecutionLease, attemptId: string, output: WorkerOutput, actualChangedPaths: string[]): PlanDocument {
+  if (output.leaseId !== lease.id || output.attemptId !== attemptId || output.planHash !== lease.planHash || output.planHash !== plan.specHash) throw new Error("worker output has stale execution identity");
   if (JSON.stringify(output.taskIds) !== JSON.stringify(lease.taskIds)) throw new Error("worker output task IDs do not match the lease");
   if (output.status === "blocked") throw new Error(output.blocker?.trim() || "worker reported a blocker");
   const expected = plan.tasks.filter((task) => lease.taskIds.includes(task.id));
@@ -662,21 +739,52 @@ async function atomicWrite(filePath: string, value: unknown): Promise<void> {
   await fs.rename(temporary, filePath);
 }
 
+async function processStartId(pid: number): Promise<string | undefined> {
+  try { return (await fs.readFile(`/proc/${pid}/stat`, "utf8")).split(" ")[21]; }
+  catch { return undefined; }
+}
+
+async function staleLock(lockPath: string): Promise<boolean> {
+  try {
+    const lock = JSON.parse(await fs.readFile(lockPath, "utf8")) as { pid?: number; host?: string; processStartId?: string };
+    if (!Number.isInteger(lock.pid) || lock.host !== os.hostname()) return false;
+    try { process.kill(lock.pid!, 0); }
+    catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH"; }
+    const currentStart = await processStartId(lock.pid!);
+    return Boolean(lock.processStartId && currentStart && lock.processStartId !== currentStart);
+  } catch {
+    try { return Date.now() - (await fs.stat(lockPath)).mtimeMs > 30_000; }
+    catch { return false; }
+  }
+}
+
 export async function withWorkLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
   const { workDir, lockPath } = workPaths(root);
   await fs.mkdir(workDir, { recursive: true });
   let handle;
-  try {
-    handle = await fs.open(lockPath, "wx");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Plan -> Execute state is locked by another operation");
-    throw error;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { handle = await fs.open(lockPath, "wx"); break; }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (attempt === 0 && await staleLock(lockPath)) {
+        const quarantine = `${lockPath}.stale.${randomUUID()}`;
+        try { await fs.rename(lockPath, quarantine); await fs.rm(quarantine, { force: true }); continue; }
+        catch (renameError) { if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue; }
+      }
+      throw new Error("Plan -> Execute state is locked by another live or unidentifiable operation");
+    }
   }
+  if (!handle) throw new Error("failed to acquire Plan -> Execute state lock");
+  const token = randomUUID();
+  await handle.writeFile(JSON.stringify({ pid: process.pid, host: os.hostname(), processStartId: await processStartId(process.pid), createdAt: new Date().toISOString(), token }));
   try {
     return await fn();
   } finally {
     await handle.close();
-    await fs.rm(lockPath, { force: true });
+    try {
+      const current = JSON.parse(await fs.readFile(lockPath, "utf8")) as { token?: string };
+      if (current.token === token) await fs.rm(lockPath, { force: true });
+    } catch { /* Never remove a replacement lock owned by another process. */ }
   }
 }
 
@@ -748,13 +856,23 @@ export async function writeRuntime(root: string, plan: PlanDocument, state: Work
   await writeWorkState(root, state);
 }
 
+function assertWorkState(value: WorkState, plan?: PlanDocument): WorkState {
+  if (value.version !== 2 || !value.planSlug || !value.planHash || !Number.isInteger(value.generation) || value.generation < 0 || !(["planned", "active", "paused", "completed", "stopped", "abandoned"] as unknown[]).includes(value.status) || !(["dispatch", "verify"] as unknown[]).includes(value.stage) || !Array.isArray(value.receipts)) throw new Error("invalid work state");
+  if (plan && (value.planSlug !== plan.slug || value.planHash !== plan.specHash)) throw new Error("runtime checkpoint identity mismatch");
+  if (["active", "paused", "stopped"].includes(value.status) && !value.lease) throw new Error("nonterminal execution is missing its lease");
+  if (value.stage === "verify" && (!value.lease || plan?.tasks.filter((task) => value.lease!.taskIds.includes(task.id)).some((task) => task.status !== "implemented"))) throw new Error("verify state does not match implemented lease tasks");
+  if (value.workerAttempt && (!value.lease || value.workerAttempt.number < 1 || !/^[a-zA-Z0-9-]+$/.test(value.workerAttempt.id) || !["reserved", "running", "unresolved", "terminal"].includes(value.workerAttempt.status) || !value.workerAttempt.startedAt || (value.workerAttempt.status === "terminal" && !value.workerAttempt.endedAt))) throw new Error("worker attempt is invalid");
+  if (value.verificationAttempt && (!/^[a-zA-Z0-9-]+$/.test(value.verificationAttempt.id) || !["running", "terminal"].includes(value.verificationAttempt.status) || !value.verificationAttempt.startedAt)) throw new Error("verification attempt is invalid");
+  return value;
+}
+
 export async function readRuntime(root: string): Promise<RuntimeCheckpoint | undefined> {
   try {
     const checkpoint = JSON.parse(await fs.readFile(workPaths(root).runtimePath, "utf8")) as RuntimeCheckpoint;
     if (checkpoint.version !== 2 || !checkpoint.plan || !checkpoint.state) throw new Error("invalid runtime checkpoint");
     const plan = assertPlan(checkpoint.plan);
-    if (checkpoint.state.version !== 2 || checkpoint.state.planSlug !== plan.slug || checkpoint.state.planHash !== plan.specHash) throw new Error("runtime checkpoint identity mismatch");
-    return { ...checkpoint, plan };
+    const state = assertWorkState(checkpoint.state, plan);
+    return { ...checkpoint, plan, state };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
@@ -768,10 +886,7 @@ export async function writeWorkState(root: string, state: WorkState): Promise<vo
 export async function readWorkState(root: string): Promise<WorkState | undefined> {
   try {
     const state = JSON.parse(await fs.readFile(workPaths(root).statePath, "utf8")) as WorkState;
-    if (state.version !== 2 || !state.planSlug || !state.planHash || !(["planned", "active", "paused", "completed", "stopped"] as unknown[]).includes(state.status) || !(["dispatch", "verify"] as unknown[]).includes(state.stage) || !Array.isArray(state.receipts)) {
-      throw new Error("invalid work state");
-    }
-    return state;
+    return assertWorkState(state);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;

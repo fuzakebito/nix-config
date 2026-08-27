@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -15,9 +15,11 @@ import {
   importWorkerOutput,
   parseMetisOutput,
   parseMomusOutput,
+  patchPlan,
   parseWorkerOutput,
   readRuntime,
   renderPlanMarkdown,
+  withWorkLock,
   workPaths,
   writeRuntime,
   type CheckReceipt,
@@ -135,11 +137,29 @@ describe("Plan Execute v2 core", () => {
     })).verdict).toBe("approved");
   });
 
+  test("patches selected plan fields without resending the full plan", () => {
+    const brief = readyBrief();
+    const plan = createPlan(planInput(), brief);
+    const patched = patchPlan(plan, brief, {
+      expectedHash: plan.specHash,
+      risks: ["Review long-running cancellation"],
+      taskPatches: [{ id: "T2", acceptance: ["A failed command blocks completion and records evidence"] }],
+    });
+    expect(patched.revision).toBe(plan.revision + 1);
+    expect(patched.specHash).not.toBe(plan.specHash);
+    expect(patched.tasks[0].title).toBe(plan.tasks[0].title);
+    expect(patched.tasks[1].acceptance).toEqual(["A failed command blocks completion and records evidence"]);
+    expect(patched.momus.verdict).toBe("pending");
+    expect(() => patchPlan(plan, brief, { expectedHash: "stale", goal: "changed" })).toThrow("expectedHash is stale");
+    expect(() => patchPlan(plan, brief, { expectedHash: plan.specHash, taskPatches: [{ id: "T9", title: "unknown" }] })).toThrow("unknown task ID");
+  });
+
   test("imports only the exact worker lease and enforces actual changed paths", () => {
     const plan = approvedPlan();
     const lease = createLease(plan, {});
     const output = parseWorkerOutput(JSON.stringify({
       leaseId: lease.id,
+      attemptId: "A1",
       planHash: plan.specHash,
       taskIds: lease.taskIds,
       status: "implemented",
@@ -149,8 +169,8 @@ describe("Plan Execute v2 core", () => {
         accomplished: ["Canonical state is durable"], architectureChanges: [], decisions: [], invalidatedAssumptions: [], planDeviations: [], newRisks: [], userDecisionNeeded: [],
       },
     }));
-    expect(() => importWorkerOutput(plan, lease, output, ["outside.txt"])).toThrow("outside the lease");
-    const imported = importWorkerOutput(plan, lease, output, ["home/pi/files/plan-execute/core.ts"]);
+    expect(() => importWorkerOutput(plan, lease, "A1", output, ["outside.txt"])).toThrow("outside the lease");
+    const imported = importWorkerOutput(plan, lease, "A1", output, ["home/pi/files/plan-execute/core.ts"]);
     expect(imported.tasks[0].status).toBe("implemented");
     expect(imported.semanticDeltas[0].accomplished).toEqual(["Canonical state is durable"]);
   });
@@ -158,8 +178,9 @@ describe("Plan Execute v2 core", () => {
   test("requires worker and wave receipts before unlocking dependencies", () => {
     let plan = approvedPlan();
     const lease = createLease(plan, {});
-    plan = importWorkerOutput(plan, lease, {
+    plan = importWorkerOutput(plan, lease, "A1", {
       leaseId: lease.id,
+      attemptId: "A1",
       planHash: plan.specHash,
       taskIds: lease.taskIds,
       status: "implemented",
@@ -187,12 +208,36 @@ describe("Plan Execute v2 core", () => {
     const unsafeProgram = planInput();
     unsafeProgram.tasks[0].workerChecks[0] = { ...unsafeProgram.tasks[0].workerChecks[0], program: "sh", args: ["-c", "touch escaped"] };
     expect(() => createPlan(unsafeProgram, brief)).toThrow("forbidden program");
+    const reservedPath = planInput();
+    reservedPath.tasks[0].expectedPaths = [".pi//work/state.json"];
+    expect(() => createPlan(reservedPath, brief)).toThrow("reserved path");
+    const mutatingNix = planInput();
+    mutatingNix.finalChecks = [{ id: "update", program: "nix", args: ["flake", "update"] }];
+    expect(() => createPlan(mutatingNix, brief)).toThrow("mutating or unsupported");
+    const outLink = planInput();
+    outLink.finalChecks = [{ id: "out-link", program: "nix", args: ["build", "--no-link", "--out-link", "result"] }];
+    expect(() => createPlan(outLink, brief)).toThrow("mutating Nix");
+    const outsideArtifact = planInput();
+    outsideArtifact.tasks[0].workerChecks[0].artifacts = ["outside.txt"];
+    expect(() => createPlan(outsideArtifact, brief)).toThrow("outside expected paths");
   });
 
   test("rejects malformed nested worker semantic output", () => {
     expect(() => parseWorkerOutput(JSON.stringify({
-      leaseId: "L1", planHash: "hash", taskIds: ["T1"], status: "implemented", summary: "done", changedPaths: [],
+      leaseId: "L1", attemptId: "A1", planHash: "hash", taskIds: ["T1"], status: "implemented", summary: "done", changedPaths: [],
       semanticDelta: { accomplished: [], architectureChanges: [{ fact: "missing rationale", references: [] }], decisions: [], invalidatedAssumptions: [], planDeviations: [], newRisks: [], userDecisionNeeded: [] },
+    }))).toThrow("invalid architecture");
+  });
+
+  test("rejects acceptance-wrapper and malformed recovery artifacts", () => {
+    expect(() => parseWorkerOutput(JSON.stringify({
+      leaseId: "L1", attemptId: "A1", planHash: "hash", taskIds: ["T1"], status: "implemented", summary: "done", changedPaths: [],
+      acceptanceReport: { changedFiles: ["src/main.rs"] },
+      semanticDelta: { accomplished: ["implemented"], architectureChanges: [], decisions: [], invalidatedAssumptions: [], planDeviations: [], newRisks: [], userDecisionNeeded: [] },
+    }))).toThrow("unsupported fields");
+    expect(() => parseWorkerOutput(JSON.stringify({
+      leaseId: "L1", attemptId: "A1", planHash: "hash", taskIds: ["T1"], status: "implemented", summary: "done", changedPaths: [],
+      semanticDelta: { accomplished: [], architectureChanges: [{ fact: "change", rationale: "why", references: [1] }], decisions: [], invalidatedAssumptions: [], planDeviations: [], newRisks: [], userDecisionNeeded: [] },
     }))).toThrow("invalid architecture");
   });
 
@@ -201,12 +246,22 @@ describe("Plan Execute v2 core", () => {
     try {
       const plan = approvedPlan();
       const lease = createLease(plan, {});
-      const state = { version: 2 as const, planSlug: plan.slug, planHash: plan.specHash, status: "active" as const, stage: "dispatch" as const, lease, receipts: [], updatedAt: new Date().toISOString() };
+      const state = { version: 2 as const, generation: 0, planSlug: plan.slug, planHash: plan.specHash, status: "active" as const, stage: "dispatch" as const, lease, receipts: [], updatedAt: new Date().toISOString() };
       await writeRuntime(root, plan, state);
       await writeFile(workPaths(root).statePath, "{broken mirror");
       const checkpoint = await readRuntime(root);
       expect(checkpoint?.state.lease?.id).toBe(lease.id);
       expect(checkpoint?.plan.specHash).toBe(plan.specHash);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  test("reclaims a lock owned by a provably dead process", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "plan-lock-"));
+    try {
+      const paths = workPaths(root);
+      await mkdir(paths.workDir, { recursive: true });
+      await writeFile(paths.lockPath, JSON.stringify({ pid: 2147483647, host: os.hostname(), processStartId: "dead", createdAt: new Date().toISOString() }));
+      expect(await withWorkLock(root, async () => "acquired")).toBe("acquired");
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
