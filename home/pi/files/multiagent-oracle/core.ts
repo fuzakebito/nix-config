@@ -219,22 +219,30 @@ interface CompletionEvent {
   state?: unknown;
   success?: unknown;
   archivePath?: unknown;
+  workflow?: unknown;
   output?: unknown;
   finalOutput?: unknown;
   error?: unknown;
 }
 
 async function completionText(event: CompletionEvent): Promise<string> {
-  for (const value of [event.finalOutput, event.output]) {
+  if (event.workflow && typeof event.workflow === "object") {
+    const value = (event.workflow as { value?: unknown }).value;
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   if (typeof event.archivePath === "string" && event.archivePath) {
-    const archive = JSON.parse(await readFile(event.archivePath, "utf8")) as { entries?: Array<{ text?: unknown }> };
+    const archive = JSON.parse(await readFile(event.archivePath, "utf8")) as { entries?: Array<{ path?: unknown; text?: unknown; truncated?: unknown }> };
+    for (const entry of archive.entries ?? []) {
+      if (typeof entry.path !== "string" || !entry.path) continue;
+      const text = (await readFile(entry.path, "utf8")).trim();
+      if (text) return text;
+    }
     const text = archive.entries?.map((entry) => typeof entry.text === "string" ? entry.text.trim() : "").filter(Boolean).join("\n\n");
-    if (text) return text;
+    if (text && !archive.entries?.some((entry) => entry.truncated === true)) return text;
   }
-  if (typeof event.error === "string" && event.error) return event.error;
-  return `Multiagent oracle finished with state ${String(event.state ?? "unknown")}.`;
+  if (typeof event.finalOutput === "string" && event.finalOutput.trim()) return event.finalOutput.trim();
+  if (event.success === false && typeof event.error === "string" && event.error) return event.error;
+  throw new Error("Multiagent oracle completed, but its full workflow return value was unavailable; refusing to return a truncated completion preview.");
 }
 
 export function waitForAsyncCompletion(

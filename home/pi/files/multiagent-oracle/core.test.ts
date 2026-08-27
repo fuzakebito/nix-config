@@ -91,7 +91,12 @@ describe("multiagent oracle workflow", () => {
     events.emit("subagent:async-complete", { runId: "other-run", success: true, output: "wrong" });
     await Bun.sleep(0);
     expect(settled).toBe(false);
-    events.emit("subagent:async-complete", { runId: "target-run", success: true, output: "final oracle" });
+    events.emit("subagent:async-complete", {
+      runId: "target-run",
+      success: true,
+      output: "Workflow completed. Return: final ora",
+      workflow: { value: "final oracle" },
+    });
     expect(await waiting).toBe("final oracle");
   });
 });
