@@ -409,7 +409,7 @@ export interface PlanInput {
     outcome: string;
     satisfies: string[];
     decisions?: string[];
-    references?: string[];
+    references: string[];
     dependsOn?: string[];
     expectedPaths: string[];
     acceptance: string[];
@@ -444,6 +444,8 @@ export function createPlan(input: PlanInput, brief: PlanningBrief, previous?: Pl
     if (!task.title.trim() || !task.outcome.trim()) throw new Error(`${id} requires title and outcome`);
     if (satisfies.length === 0 || satisfies.some((value) => !requirementIds.has(value))) throw new Error(`${id} has missing or unknown requirement IDs`);
     if (decisions.some((value) => !decisionIds.has(value))) throw new Error(`${id} has unknown decision IDs`);
+    const references = cleanList(task.references);
+    if (references.length === 0) throw new Error(`${id} requires repository references`);
     const acceptance = cleanList(task.acceptance);
     if (acceptance.length === 0) throw new Error(`${id} requires acceptance criteria`);
     const expectedPaths = cleanList(task.expectedPaths).map((value) => safeRelative(value, id));
@@ -459,7 +461,7 @@ export function createPlan(input: PlanInput, brief: PlanningBrief, previous?: Pl
       outcome: task.outcome.trim(),
       satisfies,
       decisions,
-      references: cleanList(task.references),
+      references,
       dependsOn: cleanList(task.dependsOn),
       expectedPaths,
       acceptance,
@@ -477,6 +479,9 @@ export function createPlan(input: PlanInput, brief: PlanningBrief, previous?: Pl
   }
   for (const requirement of requirementIds) {
     if (!tasks.some((task) => task.satisfies.includes(requirement))) throw new Error(`requirement ${requirement} is not satisfied by any task`);
+  }
+  for (const decision of decisionIds) {
+    if (!tasks.some((task) => task.decisions.includes(decision))) throw new Error(`decision ${decision} is not implemented by any task`);
   }
   const finalChecks = input.finalChecks.map((check) => normalizeCheck(check, "final"));
   const planPaths = tasks.flatMap((task) => task.expectedPaths);
@@ -711,12 +716,15 @@ export function renderSemanticDelta(delta: SemanticDelta): string {
 }
 
 export function renderPlanMarkdown(plan: PlanDocument): string {
+  const check = (scope: string, item: CheckSpec) => `${scope}:${item.id} \`${[item.program, ...item.args].join(" ")}\`${item.cwd ? ` (cwd: ${item.cwd})` : ""}${item.artifacts.length ? ` (artifacts: ${item.artifacts.join(", ")})` : ""}`;
   const tasks = plan.tasks.map((task) => {
     const mark = task.status === "completed" ? "x" : " ";
-    const checks = [...task.workerChecks.map((check) => `worker:${check.id} \`${[check.program, ...check.args].join(" ")}\``), ...task.waveChecks.map((check) => `wave:${check.id} \`${[check.program, ...check.args].join(" ")}\``)].join("; ");
-    return `- [${mark}] ${task.id}. ${task.title}\n  - Outcome: ${task.outcome}\n  - Requirements: ${task.satisfies.join(", ")}\n  - Depends on: ${task.dependsOn.join(", ") || "none"}\n  - Expected paths: ${task.expectedPaths.join(", ")}\n  - Acceptance: ${task.acceptance.join("; ")}\n  - Checks: ${checks}`;
+    const requirements = task.satisfies.map((id) => `${id}: ${plan.requirements.find((item) => item.id === id)?.text ?? "unknown"}`).join("; ");
+    const decisions = task.decisions.map((id) => { const decision = plan.decisions.find((item) => item.id === id); return decision ? `${id}: ${decision.text} — ${decision.rationale}` : `${id}: unknown`; }).join("; ") || "none";
+    const checks = [...task.workerChecks.map((item) => check("worker", item)), ...task.waveChecks.map((item) => check("wave", item))].join("; ");
+    return `- [${mark}] ${task.id}. ${task.title}\n  - Outcome: ${task.outcome}\n  - Requirements: ${requirements}\n  - Decisions: ${decisions}\n  - Depends on: ${task.dependsOn.join(", ") || "none"}\n  - References: ${task.references.join(", ")}\n  - Expected paths: ${task.expectedPaths.join(", ")}\n  - Acceptance: ${task.acceptance.join("; ")}\n  - Checks: ${checks}`;
   }).join("\n");
-  return `# ${plan.title}\n\nGoal: ${plan.goal}\n\nSpec hash: \`${plan.specHash}\`\n\n## Strategic Context\n\n${renderStrategicContext(plan)}\n\n## Tasks\n\n${tasks}\n\n## Final Checks\n\n${plan.finalChecks.map((check) => `- ${check.id}: \`${[check.program, ...check.args].join(" ")}\``).join("\n")}\n\n## Momus\n\nVerdict: ${plan.momus.verdict}\n`;
+  return `# ${plan.title}\n\nGoal: ${plan.goal}\n\nSpec hash: \`${plan.specHash}\`\n\n## Strategic Context\n\n${renderStrategicContext(plan)}\n\n## Tasks\n\n${tasks}\n\n## Final Checks\n\n${plan.finalChecks.map((item) => `- ${check("final", item)}`).join("\n")}\n\n## Momus\n\nVerdict: ${plan.momus.verdict}\n`;
 }
 
 export function workPaths(root: string) {

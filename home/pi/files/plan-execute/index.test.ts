@@ -6,6 +6,8 @@ describe("Plan Execute v2 extension", () => {
   test("registers the rationalized planning and staged-verification surface", async () => {
     const source = await Bun.file(extensionPath).text();
     const planWorker = await Bun.file("home/pi/files/agents/plan-worker.md").text();
+    const metis = await Bun.file("home/pi/files/agents/metis.md").text();
+    const momus = await Bun.file("home/pi/files/agents/momus.md").text();
     const tools = [...source.matchAll(/name: \"([a-z_]+)\", label:/g)].map((match) => match[1]);
     const commands = [...source.matchAll(/registerCommand\(\"([a-z-]+)\"/g)].map((match) => match[1]);
     const events = [...source.matchAll(/pi\.on\(\"([a-z_]+)\"/g)].map((match) => match[1]);
@@ -30,6 +32,10 @@ describe("Plan Execute v2 extension", () => {
     expect(source).not.toContain('name: "plan_review"');
     expect(planWorker).toContain("tools: read, grep, find, ls, bash, edit, write");
     expect(planWorker).not.toContain("contact_supervisor");
+    expect(source).toContain("A fresh worker must not need to rediscover material control flow or architecture");
+    expect(source).toContain("cite this ID from the acceptance criterion it proves");
+    expect(metis).toContain("entry points, boundary symbols, callers or consumers, integration wiring");
+    expect(momus).toContain("acceptance merely restates the outcome");
   });
 
   test("runs bounded read-only inspection commands during planning", async () => {
@@ -90,8 +96,8 @@ describe("Plan Execute v2 extension", () => {
     const script = `
       import { mkdtemp } from 'node:fs/promises'; import path from 'node:path'; import os from 'node:os';
       const { default: extension } = await import('${extensionPath}');
-      const tools=new Map(),commands=new Map(),handlers=new Map(); let active=['read','subagent'];
-      const pi={registerTool(d){tools.set(d.name,d)},registerCommand(n,d){commands.set(n,d)},on(n,f){const a=handlers.get(n)??[];a.push(f);handlers.set(n,a)},getActiveTools(){return active},setActiveTools(n){active=n},getAllTools(){return []},appendEntry(){},sendUserMessage(){}}; extension(pi);
+      const tools=new Map(),commands=new Map(),handlers=new Map(),messages=[]; let active=['read','subagent'];
+      const pi={registerTool(d){tools.set(d.name,d)},registerCommand(n,d){commands.set(n,d)},on(n,f){const a=handlers.get(n)??[];a.push(f);handlers.set(n,a)},getActiveTools(){return active},setActiveTools(n){active=n},getAllTools(){return []},appendEntry(){},sendUserMessage(){},sendMessage(message){messages.push(message)}}; extension(pi);
       const root=await mkdtemp(path.join(os.tmpdir(),'plan-metis-')); const ctx={cwd:root,mode:'rpc',hasUI:false,ui:{notify(){}},waitForIdle:async()=>{},sessionManager:{getBranch:()=>[],getSessionId:()=> 'test'}};
       await commands.get('plan').handler('rewrite it',ctx);
       const saved=await tools.get('planning_brief_save').execute('1',{request:'rewrite it',requirements:['Keep context valuable'],proposedApproach:'Use deterministic gates'},undefined,undefined,ctx);
@@ -100,11 +106,11 @@ describe("Plan Execute v2 extension", () => {
       const value={briefPath:managed+'/briefs/'+slug+'.json',briefHash,readiness:'ready',blockingGaps:[],nonBlockingRisks:[],directives:[]};
       for(const h of handlers.get('tool_result')) await h({toolName:'subagent',input:call.input,details:{runId:'metis-root',results:[{agent:'metis',index:0,exitCode:0,structuredOutput:value}]}});
       const imported=await tools.get('planning_brief_load').execute('2',{slug},undefined,undefined,ctx);
-      console.log(JSON.stringify({async:call.input.async,output:call.input.output,acceptance:call.input.acceptance,readiness:imported.details.readiness}));
+      console.log(JSON.stringify({async:call.input.async,output:call.input.output,acceptance:call.input.acceptance,readiness:imported.details.readiness,reviewMessage:messages[0]?.content}));
     `;
     const child=Bun.spawn(["bun","-e",script],{stdout:"pipe",stderr:"pipe"}); const [exitCode,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
     expect(stderr).toBe(""); expect(exitCode).toBe(0);
-    expect(JSON.parse(stdout)).toMatchObject({async:false,output:false,acceptance:{level:"none"},readiness:"ready"});
+    expect(JSON.parse(stdout)).toMatchObject({async:false,output:false,acceptance:{level:"none"},readiness:"ready",reviewMessage:expect.stringContaining("Metis review imported")});
   });
 
   test("automatically imports Momus and worker completion artifacts", async () => {
@@ -117,7 +123,7 @@ describe("Plan Execute v2 extension", () => {
       await commands.get('plan').handler('auto import',ctx);
       const saved=await tools.get('planning_brief_save').execute('1',{request:'auto import',requirements:['Implement'],proposedApproach:'One task'},undefined,undefined,ctx);
       let brief=await core.readBrief(root,saved.details.slug); brief=core.applyMetisReview(brief,{briefPath:'brief',briefHash:brief.briefHash,readiness:'ready',blockingGaps:[],nonBlockingRisks:[],directives:[]}); await core.writeBrief(root,brief);
-      const savedPlan=await tools.get('plan_save').execute('2',{title:'Auto',goal:'Implement',tasks:[{title:'Task',outcome:'Done',satisfies:['R1'],expectedPaths:['src'],acceptance:['Done'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},undefined,undefined,ctx);
+      const savedPlan=await tools.get('plan_save').execute('2',{title:'Auto',goal:'Implement',tasks:[{title:'Task',outcome:'The src entry point implements R1',satisfies:['R1'],references:['src#index'],expectedPaths:['src'],acceptance:['test proves the R1 behavior'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},undefined,undefined,ctx);
       let plan=await core.readPlan(root,savedPlan.details.slug); const managed=['.pi','work'].join('/');
       const momusCall={toolName:'subagent',input:{agent:'momus',task:'review current plan'}}; for(const h of handlers.get('tool_call')) await h(momusCall);
       const momusValue={planPath:managed+'/plans/'+plan.slug+'.md',planHash:plan.specHash,verdict:'approved',blockingFindings:[],nonBlockingNotes:[]}; for(const h of handlers.get('tool_result')) await h({toolName:'subagent',input:momusCall.input,details:{runId:'momus-root',results:[{agent:'momus',index:0,exitCode:0,structuredOutput:momusValue}]}});
@@ -127,7 +133,7 @@ describe("Plan Execute v2 extension", () => {
       runtime=await core.readRuntime(root); console.log(JSON.stringify({verdict:plan.momus.verdict,stage:runtime.state.stage,workerRunId:runtime.state.workerRunId,momusTask:momusCall.input.task,workerTask:workerCall.input.task,reviewMessage:messages[0]?.content,acceptance:workerCall.input.acceptance,async:workerCall.input.async,output:workerCall.input.output,nestedFact:workerCall.input.outputSchema.properties.semanticDelta.properties.architectureChanges.items.properties.fact.type,duplicate}));
     `;
     const child=Bun.spawn(["bun","-e",script],{stdout:"pipe",stderr:"pipe"}); const [exitCode,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
-    expect(stderr).toBe(""); expect(exitCode).toBe(0); expect(JSON.parse(stdout)).toMatchObject({verdict:"approved",stage:"verify",workerRunId:"worker-root",momusTask:expect.stringContaining("Bind the semantic review to current plan hash"),workerTask:expect.stringContaining("R1: Implement"),reviewMessage:expect.stringContaining("Momus review imported"),acceptance:{level:"none"},async:false,output:false,nestedFact:"string",duplicate:{block:true}});
+    expect(stderr).toBe(""); expect(exitCode).toBe(0); expect(JSON.parse(stdout)).toMatchObject({verdict:"approved",stage:"verify",workerRunId:"worker-root",momusTask:expect.stringContaining("authoritative .pi/work/plans/auto.json"),workerTask:expect.stringContaining("R1: Implement"),reviewMessage:expect.stringContaining("Momus review imported"),acceptance:{level:"none"},async:false,output:false,nestedFact:"string",duplicate:{block:true}});
   });
 
   test("records paused worker decisions by stable workflow ID", async () => {
@@ -138,7 +144,7 @@ describe("Plan Execute v2 extension", () => {
       const pi={registerTool(d){tools.set(d.name,d)},registerCommand(n,d){commands.set(n,d)},on(n,f){const a=handlers.get(n)??[];a.push(f);handlers.set(n,a)},getActiveTools(){return active},setActiveTools(n){active=n},getAllTools(){return []},appendEntry(){},sendUserMessage(){}}; extension(pi);
       const root=await mkdtemp(path.join(os.tmpdir(),'plan-decision-'));
       let brief=core.createPlanningBrief({request:'decide',requirements:['Choose'],proposedApproach:'Implement'}); brief=core.applyMetisReview(brief,{briefPath:'brief',briefHash:brief.briefHash,readiness:'ready',blockingGaps:[],nonBlockingRisks:[],directives:[]});
-      let plan=core.createPlan({title:'Decision',goal:'Choose',tasks:[{title:'Task',outcome:'Done',satisfies:['R1'],expectedPaths:['src'],acceptance:['Done'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},brief); plan=core.applyMomusReview(plan,{planPath:'plan',planHash:plan.specHash,verdict:'approved',blockingFindings:[],nonBlockingNotes:[]});
+      let plan=core.createPlan({title:'Decision',goal:'Choose',tasks:[{title:'Task',outcome:'The src entry point applies the chosen format',satisfies:['R1'],references:['src#index'],expectedPaths:['src'],acceptance:['test proves the selected format'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},brief); plan=core.applyMomusReview(plan,{planPath:'plan',planHash:plan.specHash,verdict:'approved',blockingFindings:[],nonBlockingNotes:[]});
       const lease=core.createLease(plan,{}); plan=core.recordSemanticDelta(plan,lease.id,{accomplished:[],architectureChanges:[],decisions:[],invalidatedAssumptions:[],planDeviations:[],newRisks:[],userDecisionNeeded:['Which format?']});
       await core.writeRuntime(root,plan,{version:2,generation:0,planSlug:plan.slug,planHash:plan.specHash,status:'paused',stage:'dispatch',lease,receipts:[],updatedAt:new Date().toISOString()});
       const ctx={cwd:root,mode:'rpc',hasUI:false,ui:{notify(){}},sessionManager:{getBranch:()=>[],getSessionId:()=> 'test'}};
@@ -159,7 +165,7 @@ describe("Plan Execute v2 extension", () => {
       const pi={registerTool(d){tools.set(d.name,d)},registerCommand(n,d){commands.set(n,d)},on(n,f){const a=handlers.get(n)??[];a.push(f);handlers.set(n,a)},getActiveTools(){return active},setActiveTools(n){active=n},getAllTools(){return []},appendEntry(){},sendUserMessage(){},exec:async(program,args)=>({code:0,stdout:program==='git'&&args[0]==='rev-parse'?'HEAD\\n':'',stderr:''})}; extension(pi);
       const root=await mkdtemp(path.join(os.tmpdir(),'plan-recovery-'));
       let brief=core.createPlanningBrief({request:'recover',requirements:['Do work'],proposedApproach:'Implement'}); brief=core.applyMetisReview(brief,{briefPath:'brief',briefHash:brief.briefHash,readiness:'ready',blockingGaps:[],nonBlockingRisks:[],directives:[]}); await core.writeBrief(root,brief);
-      let plan=core.createPlan({title:'Recover',goal:'Work',tasks:[{title:'Task',outcome:'Done',satisfies:['R1'],expectedPaths:['src'],acceptance:['Done'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},brief); plan=core.applyMomusReview(plan,{planPath:'plan',planHash:plan.specHash,verdict:'approved',blockingFindings:[],nonBlockingNotes:[]}); await core.writePlan(root,plan); await core.writeWorkState(root,{version:2,generation:0,planSlug:plan.slug,planHash:plan.specHash,status:'planned',stage:'dispatch',receipts:[],updatedAt:new Date().toISOString()});
+      let plan=core.createPlan({title:'Recover',goal:'Work',tasks:[{title:'Task',outcome:'The src entry point completes recoverable work',satisfies:['R1'],references:['src#index'],expectedPaths:['src'],acceptance:['test proves recoverable work'],workerChecks:[{id:'test',program:'bun',args:['test']}]}],finalChecks:[{id:'final',program:'bun',args:['test']}]},brief); plan=core.applyMomusReview(plan,{planPath:'plan',planHash:plan.specHash,verdict:'approved',blockingFindings:[],nonBlockingNotes:[]}); await core.writePlan(root,plan); await core.writeWorkState(root,{version:2,generation:0,planSlug:plan.slug,planHash:plan.specHash,status:'planned',stage:'dispatch',receipts:[],updatedAt:new Date().toISOString()});
       const ctx={cwd:root,mode:'rpc',hasUI:false,waitForIdle:async()=>{},ui:{notify(){}},sessionManager:{getBranch:()=>[],getSessionId:()=> 'test'}}; await commands.get('start-work').handler(plan.slug,ctx);
       let runtime=await core.readRuntime(root); const lease=runtime.state.lease; const failedCall={toolName:'subagent',toolCallId:'tc-failed',input:{agent:'plan-worker',task:'implement'}}; for(const h of handlers.get('tool_call')) await h(failedCall); for(const h of handlers.get('tool_execution_end')) await h({toolName:'subagent',toolCallId:'tc-failed',args:failedCall.input,isError:true}); const call={toolName:'subagent',toolCallId:'tc-retry',input:{agent:'plan-worker',task:'implement'}}; for(const h of handlers.get('tool_call')) await h(call); runtime=await core.readRuntime(root); const attempt=runtime.state.workerAttempt;
       const value={leaseId:lease.id,attemptId:attempt.id,planHash:plan.specHash,taskIds:lease.taskIds,status:'implemented',summary:'done',changedPaths:[],semanticDelta:{accomplished:['done'],architectureChanges:[],decisions:[],invalidatedAssumptions:[],planDeviations:[],newRisks:[],userDecisionNeeded:[]}}; const receiptPath=path.join(root,'.pi','work','evidence','provider','worker-'+attempt.id+'.json'); await mkdir(path.dirname(receiptPath),{recursive:true}); await writeFile(receiptPath,JSON.stringify({version:1,agent:'worker',identity:attempt.id,rootRunId:'worker-root',childRunId:'worker-child',recordedAt:new Date().toISOString(),value}));

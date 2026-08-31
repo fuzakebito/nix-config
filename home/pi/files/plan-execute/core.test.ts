@@ -56,21 +56,23 @@ function planInput() {
     tasks: [
       {
         title: "Implement state",
-        outcome: "Canonical state is durable",
+        outcome: "createPlan and writeRuntime persist one hash-bound canonical checkpoint that readRuntime restores after a session restart",
         satisfies: ["R1"],
         decisions: ["D1"],
+        references: ["home/pi/files/plan-execute/core.ts#createPlan", "home/pi/files/plan-execute/core.ts#writeRuntime"],
         expectedPaths: ["home/pi/files/plan-execute"],
-        acceptance: ["State survives a session restart"],
-        workerChecks: [{ id: "core-unit", program: "bun", args: ["test", "core.test.ts"], cwd: "home/pi/files/plan-execute" }],
+        acceptance: ["core-unit proves writeRuntime/readRuntime preserve the canonical plan and state across a disk round trip"],
+        workerChecks: [{ id: "core-unit", program: "bun", args: ["test", "core.test.ts"], cwd: "home/pi/files/plan-execute", artifacts: ["home/pi/files/plan-execute/core.ts"] }],
         waveChecks: [{ id: "extension-load", program: "bun", args: ["test", "index.test.ts"], cwd: "home/pi/files/plan-execute" }],
       },
       {
         title: "Wire verification",
-        outcome: "Every slice has deterministic checks",
+        outcome: "completeLease keeps dependent tasks locked until every worker and wave receipt succeeds",
         satisfies: ["R2"],
+        references: ["home/pi/files/plan-execute/core.ts#completeLease", "home/pi/files/plan-execute/index.ts#runChecks"],
         dependsOn: ["T1"],
         expectedPaths: ["home/pi/files/plan-execute"],
-        acceptance: ["A failed command blocks completion"],
+        acceptance: ["verification-unit proves a failed or missing required receipt blocks completion and dependency unlock"],
         workerChecks: [{ id: "verification-unit", program: "bun", args: ["test", "core.test.ts"], cwd: "home/pi/files/plan-execute" }],
       },
     ],
@@ -117,6 +119,26 @@ describe("Plan Execute v2 core", () => {
     expect(() => parseMetisOutput(JSON.stringify({
       briefPath: "brief.json", briefHash: pending.briefHash, readiness: "blocked", blockingGaps: [], nonBlockingRisks: [], directives: [],
     }))).toThrow("requires blocking gaps");
+  });
+
+  test("requires repository grounding and maps every approved decision to a task", () => {
+    const brief = readyBrief();
+    const ungrounded = planInput();
+    ungrounded.tasks[0].references = [];
+    expect(() => createPlan(ungrounded, brief)).toThrow("requires repository references");
+    const uncoveredDecision = planInput();
+    uncoveredDecision.tasks[0].decisions = [];
+    expect(() => createPlan(uncoveredDecision, brief)).toThrow("decision D1 is not implemented");
+  });
+
+  test("renders the complete reviewed task and check context", () => {
+    const markdown = renderPlanMarkdown(createPlan(planInput(), readyBrief()));
+    expect(markdown).toContain("R1: Persist an approved plan");
+    expect(markdown).toContain("D1: Use one writer per ready set — Avoid shared-worktree writer conflicts");
+    expect(markdown).toContain("home/pi/files/plan-execute/core.ts#createPlan");
+    expect(markdown).toContain("Depends on: T1");
+    expect(markdown).toContain("worker:core-unit `bun test core.test.ts` (cwd: home/pi/files/plan-execute) (artifacts: home/pi/files/plan-execute/core.ts)");
+    expect(markdown).toContain("final:flake-check `nix flake check --no-write-lock-file`");
   });
 
   test("derives ready sets from dependencies instead of stored wave numbers", () => {

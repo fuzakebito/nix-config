@@ -83,21 +83,24 @@ interface StructuredChildResult {
 
 const StringList = Type.Array(Type.String());
 const CheckInput = Type.Object({
-  id: Type.String({ description: "Unique across every worker, wave, and final check in the plan; use a safe file-name token." }),
+  id: Type.String({ description: "Unique across every worker, wave, and final check in the plan; use a safe file-name token and cite this ID from the acceptance criterion it proves." }),
   program: Type.String({ description: "Executable name without a path or shell. Shells, mutating Git, unsafe Nix, and inline interpreter code are rejected." }),
-  args: Type.Array(Type.String(), { description: "Direct argv entries; no shell expansion. nix build requires --no-link." }),
-  cwd: Type.Optional(Type.String({ description: "Repository-relative working directory." })),
-  artifacts: Type.Optional(Type.Array(Type.String({ description: "Repository-relative artifact path to hash after the check." }))),
+  args: Type.Array(Type.String(), { description: "Direct argv entries for a behavior-relevant check; no shell expansion. nix build requires --no-link." }),
+  cwd: Type.Optional(Type.String({ description: "Repository-relative working directory needed to run the check." })),
+  artifacts: Type.Optional(Type.Array(Type.String({ description: "Repository-relative output whose content must exist and be hashed after the check." }))),
 });
 const BriefSaveParams = Type.Object({
-  request: Type.String(),
-  requirements: Type.Array(Type.String(), { minItems: 1 }),
+  request: Type.String({ description: "The user's request, preserving intended behavior and scope." }),
+  requirements: Type.Array(Type.String({ description: "Observable outcome or constraint the completed work must satisfy." }), { minItems: 1 }),
   decisions: Type.Optional(Type.Array(Type.Object({ text: Type.String(), rationale: Type.String() }))),
   assumptions: Type.Optional(StringList),
   constraints: Type.Optional(StringList),
   outOfScope: Type.Optional(StringList),
-  repositoryEvidence: Type.Optional(Type.Array(Type.Object({ claim: Type.String(), references: Type.Array(Type.String(), { minItems: 1 }) }))),
-  proposedApproach: Type.String(),
+  repositoryEvidence: Type.Optional(Type.Array(Type.Object({
+    claim: Type.String({ description: "Verified current-code fact that shapes the plan." }),
+    references: Type.Array(Type.String({ description: "Repository-relative path#symbol or path:line anchor supporting the claim." }), { minItems: 1 }),
+  }))),
+  proposedApproach: Type.String({ description: "Trace the current entry point through relevant symbols and integration wiring to the resulting behavior; include applicable failure boundaries and validation strategy." }),
   openQuestions: Type.Optional(StringList),
 });
 const LoadParams = Type.Object({ slug: Type.Optional(Type.String()), full: Type.Optional(Type.Boolean()) });
@@ -114,24 +117,24 @@ const DecisionParams = Type.Object({
   references: Type.Optional(Type.Array(Type.String())),
 });
 const PlanTaskInput = Type.Object({
-  title: Type.String(),
-  outcome: Type.String(),
+  title: Type.String({ description: "Imperative implementation slice, narrow enough for one worker lease." }),
+  outcome: Type.String({ description: "Concrete post-change behavior, naming the affected symbols or integration points and how data/control flow changes." }),
   satisfies: Type.Array(Type.String({ description: "Planning Brief requirement ID such as R1." }), { minItems: 1 }),
-  decisions: Type.Optional(Type.Array(Type.String({ description: "Planning Brief decision ID such as D1." }))),
-  references: Type.Optional(StringList),
+  decisions: Type.Optional(Type.Array(Type.String({ description: "Planning Brief decision ID such as D1 implemented by this task." }))),
+  references: Type.Array(Type.String({ description: "Existing repository path#symbol or path:line anchors a fresh worker should inspect; new files cite the caller, importer, registration point, or convention they join." }), { minItems: 1 }),
   dependsOn: Type.Optional(Type.Array(Type.String({ description: "Earlier task ID assigned by array order: T1, T2, and so on." }))),
-  expectedPaths: Type.Array(Type.String(), { minItems: 1 }),
-  acceptance: Type.Array(Type.String(), { minItems: 1 }),
-  workerChecks: Type.Array(CheckInput, { minItems: 1 }),
-  waveChecks: Type.Optional(Type.Array(CheckInput)),
+  expectedPaths: Type.Array(Type.String({ description: "Narrowest justified repository-relative write set; prefer exact files and tests over broad directories." }), { minItems: 1 }),
+  acceptance: Type.Array(Type.String({ description: "Observable trigger and result, including applicable failure or regression behavior and the check ID that proves it." }), { minItems: 1 }),
+  workerChecks: Type.Array(CheckInput, { description: "Targeted checks proving this task's behavior.", minItems: 1 }),
+  waveChecks: Type.Optional(Type.Array(CheckInput, { description: "Integration checks required after this task and its dependency slice are combined." })),
 });
 const PlanSaveParams = Type.Object({
   title: Type.String(),
-  goal: Type.String(),
+  goal: Type.String({ description: "End-to-end observable result of the complete plan." }),
   architecture: Type.Optional(Type.Array(Type.Object({ fact: Type.String(), references: Type.Array(Type.String(), { minItems: 1 }) }))),
   risks: Type.Optional(StringList),
   tasks: Type.Array(PlanTaskInput, { minItems: 1 }),
-  finalChecks: Type.Array(CheckInput, { minItems: 1 }),
+  finalChecks: Type.Array(CheckInput, { description: "End-to-end and regression checks proving the complete goal.", minItems: 1 }),
 });
 const PlanPatchParams = Type.Object({
   expectedHash: Type.String({ description: "Required current plan hash from workflow_status; rejects concurrent stale revisions." }),
@@ -223,11 +226,11 @@ function structuredResult(details: unknown, agent: string, isError: boolean): { 
 }
 
 function metisAssessmentTask(briefSlug: string, briefHash: string): string {
-  return `Assess ${MANAGED_DIR}/briefs/${briefSlug}.json at exact brief hash ${briefHash}. Inspect referenced repository evidence as needed, return every blocking gap in the required structured output, and do not edit files.`;
+  return `Assess ${MANAGED_DIR}/briefs/${briefSlug}.json at exact brief hash ${briefHash}. Verify repository evidence and whether the current entry points, boundary symbols, consumers, integration wiring, failure behavior, and validation strategy are known well enough to write worker-ready tasks. Return every blocking gap in the required structured output, and do not edit files.`;
 }
 
 function momusReviewTask(briefSlug: string, planSlug: string, planHash: string): string {
-  return `Review ${MANAGED_DIR}/plans/${planSlug}.md against ${MANAGED_DIR}/briefs/${briefSlug}.json. Bind the semantic review to current plan hash ${planHash}. Inspect referenced repository evidence as needed, report every blocking correction in the required structured output, and do not edit files.`;
+  return `Review authoritative ${MANAGED_DIR}/plans/${planSlug}.json and its companion ${MANAGED_DIR}/plans/${planSlug}.md against ${MANAGED_DIR}/briefs/${briefSlug}.json. Bind the semantic review to current plan hash ${planHash}; keep planPath identity as ${MANAGED_DIR}/plans/${planSlug}.md. Audit every requirement, approved decision, and task for exact code anchors, end-to-end flow, integration and failure behavior, and acceptance-to-check relevance. Report every blocking correction in the required structured output, and do not edit files.`;
 }
 
 function getTargetPath(input: Record<string, unknown>): string | undefined {
@@ -290,7 +293,8 @@ function renderTasks(plan: PlanDocument, ids: string[]): string {
   return plan.tasks.filter((task) => ids.includes(task.id)).map((task) => {
     const requirements = task.satisfies.map((id) => `${id}: ${plan.requirements.find((item) => item.id === id)?.text ?? "unknown"}`).join("; ");
     const decisions = task.decisions.map((id) => { const decision = plan.decisions.find((item) => item.id === id); return decision ? `${id}: ${decision.text} — ${decision.rationale}` : `${id}: unknown`; }).join("; ") || "none";
-    return `${task.id}. ${task.title}\nOutcome: ${task.outcome}\nRequirements: ${requirements}\nDecisions: ${decisions}\nReferences: ${task.references.join(", ") || "none"}\nExpected paths: ${task.expectedPaths.join(", ")}\nAcceptance: ${task.acceptance.join("; ")}\nWorker checks: ${task.workerChecks.map(command).join("; ")}\nWave checks: ${task.waveChecks.map(command).join("; ") || "none"}`;
+    const dependencies = task.dependsOn.map((id) => { const dependency = plan.tasks.find((item) => item.id === id); return dependency ? `${id} (${dependency.title}): ${dependency.outcome}` : `${id}: unknown`; }).join("; ") || "none";
+    return `${task.id}. ${task.title}\nOutcome: ${task.outcome}\nRequirements: ${requirements}\nDecisions: ${decisions}\nDepends on: ${dependencies}\nReferences: ${task.references.join(", ") || "none"}\nExpected paths: ${task.expectedPaths.join(", ")}\nAcceptance: ${task.acceptance.join("; ")}\nWorker checks: ${task.workerChecks.map(command).join("; ")}\nWave checks: ${task.waveChecks.map(command).join("; ") || "none"}`;
   }).join("\n\n");
 }
 
@@ -390,6 +394,7 @@ export default function planExecuteExtension(pi: ExtensionAPI): void {
       if (!brief) nextAction = "planning_brief_save";
       else if (brief.metis.readiness !== "ready") nextAction = "launch metis and wait; metis_import is recovery-only";
       else if (!plan || plan.briefHash !== brief.briefHash) nextAction = "plan_save";
+      else if (plan.momus.verdict === "rejected") nextAction = "revise the rejected plan with plan_patch, or plan_save for structural task changes, before a fresh Momus review";
       else if (plan.momus.verdict !== "approved") nextAction = "call one Momus subagent and wait; review identity and import are automatic";
       else nextAction = `/start-work ${plan.slug}`;
     } else if (state?.status === "active" && state.stage === "dispatch") nextAction = workerReceiptReady ? "work_import" : state.workerAttempt ? "reconcile the current terminal worker attempt; do not launch a duplicate" : "launch the current lease worker";
@@ -638,7 +643,7 @@ export default function planExecuteExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "planning_brief_save", label: "Save Planning Brief", description: "Save the structured pre-plan context. Any change invalidates the previous Metis assessment.", parameters: BriefSaveParams,
+    name: "planning_brief_save", label: "Save Planning Brief", description: "Save repository-grounded pre-plan context after tracing the relevant flow, integration points, failure boundaries, and validation strategy. Any change invalidates the previous Metis assessment.", parameters: BriefSaveParams,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       if (session.mode !== "planning" || !session.root) throw new Error("planning_brief_save is available only during /plan");
       const { brief, paths } = await withWorkLock(session.root, async () => {
@@ -675,7 +680,7 @@ export default function planExecuteExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "plan_save", label: "Save canonical plan", description: "Create the canonical plan, or replace its complete task structure, after Metis marks the current Planning Brief ready. Prefer plan_patch for targeted revisions.", parameters: PlanSaveParams,
+    name: "plan_save", label: "Save canonical plan", description: "Create a worker-ready canonical plan whose tasks cite exact code anchors, explain flow and failure behavior, use narrow write paths, and map observable acceptance to relevant checks. Prefer plan_patch for targeted revisions.", parameters: PlanSaveParams,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       if (session.mode !== "planning" || !session.root || !session.briefSlug) throw new Error("save and assess a Planning Brief first");
       const brief = await readBrief(session.root, session.briefSlug);
@@ -983,16 +988,19 @@ export default function planExecuteExtension(pi: ExtensionAPI): void {
       if (session.lastDirective === key) return;
       session.lastDirective = key;
       persistSession();
+      const metisDirectives = brief?.metis.directives.length ? ` Metis directives: ${brief.metis.directives.join("; ")}.` : "";
       const next = !brief
-        ? "Research the repository, ask only material unresolved questions, then call planning_brief_save."
+        ? "Trace the relevant behavior end to end: current entry points, boundary symbols, callers or consumers, integration wiring, applicable failure paths, and existing validation. Ask only material unresolved questions, then call planning_brief_save with exact repository anchors."
         : brief.metis.readiness !== "ready"
           ? `Run one foreground Metis against ${MANAGED_DIR}/briefs/${brief.slug}.json and hash ${brief.briefHash}. The harness disables package acceptance, accepts only the validated structured result, persists its terminal receipt, and imports it automatically. If blocked, resolve every gap and revise the Brief.`
           : !plan
-            ? "Metis is READY. Generate the canonical plan with worker, wave, and final checks using plan_save."
-            : plan.momus.verdict !== "approved"
-              ? "Call one foreground Momus subagent. The harness supplies the current Brief path, plan path, plan hash, disables package acceptance, accepts only the validated structured result, and imports it automatically. Use plan_patch for targeted corrections; use plan_save only for structural task changes."
-              : `Planning is approved. Summarize it for the user, then offer /start-work ${plan.slug}.`;
-      return { message: { customType: "plan-execute-planning-v2", display: false, content: `Planning is read-only. Keep goal, decisions, repository evidence, and risks; do not preserve operational tool chatter. Call workflow_status whenever the next step is unclear. ${next}` } };
+            ? `Metis is READY.${metisDirectives} Generate a worker-ready canonical plan with exact code anchors, narrow write paths, explicit data/control flow and failure behavior, and observable acceptance mapped to relevant worker, wave, and final check IDs using plan_save.`
+            : plan.momus.verdict === "rejected"
+              ? `Momus rejected the current hash. Apply every persisted blocking correction with plan_patch, or plan_save when task structure must change, before requesting a fresh review. Findings: ${plan.momus.blockingFindings.map((item) => item.requiredCorrection).join("; ")}`
+              : plan.momus.verdict !== "approved"
+                ? "Call one foreground Momus subagent. The harness supplies the authoritative Brief and Plan JSON, Markdown companion, and plan hash, disables package acceptance, accepts only the validated structured result, and imports it automatically."
+                : `Planning is approved. Summarize the end-to-end approach, implementation slices, failure coverage, and validation for the user, then offer /start-work ${plan.slug}.`;
+      return { message: { customType: "plan-execute-planning-v2", display: false, content: `Planning is read-only. Preserve goal, approved decisions, repository evidence, integration and failure behavior, acceptance-to-check mapping, and risks; omit operational tool chatter. A fresh worker must not need to rediscover material control flow or architecture. Call workflow_status whenever the next step is unclear. ${next}` } };
     }
     if (session.mode === "executing" && session.root && session.planSlug) {
       const runtime = await loadExecution(session.root);
@@ -1109,6 +1117,7 @@ export default function planExecuteExtension(pi: ExtensionAPI): void {
         if (value.briefPath !== `${MANAGED_DIR}/briefs/${brief.slug}.json` || value.briefHash !== brief.briefHash) throw new Error("Metis result identity mismatch");
         await writeProviderReceipt(session.root, { version: 1, agent: "metis", identity: brief.briefHash, rootRunId: result.rootRunId, childRunId: result.childRunId, recordedAt: new Date().toISOString(), value });
         await importMetisValue(session.root, value);
+        pi.sendMessage({ customType: "plan-execute-metis-review-v2", display: false, content: `Metis review imported for current Brief hash ${value.briefHash}.\n${JSON.stringify({ readiness: value.readiness, blockingGaps: value.blockingGaps, nonBlockingRisks: value.nonBlockingRisks, directives: value.directives }, null, 2)}` }, { deliverAs: "steer" });
         lastContext?.ui.notify("Metis result imported automatically.", "info");
       } else if (agent === "momus" && session.mode === "planning" && session.briefSlug && session.planSlug) {
         const brief = await readBrief(session.root, session.briefSlug);
