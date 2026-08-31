@@ -12,6 +12,7 @@
     "@victor-software-house/pi-curated-themes": "latest",
     "context-mode": "latest",
     "pi-claude-auth": "latest",
+    "pi-mcp-adapter": "latest",
     "pi-subagents": "latest",
     "pi-web-access": "latest"
   }
