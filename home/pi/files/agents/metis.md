@@ -1,7 +1,7 @@
 ---
 name: metis
 description: Read-only readiness gate for a structured Planning Brief
-model: openai-codex/gpt-5.6-sol
+model: openai-codex/gpt-6.1-sol
 thinking: high
 tools: read, grep, find, ls
 systemPromptMode: replace

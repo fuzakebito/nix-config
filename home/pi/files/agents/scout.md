@@ -2,7 +2,7 @@
 name: scout
 description: Fast codebase recon that returns compressed context for handoff
 tools: read, grep, find, ls, bash, write, intercom
-model: openai-codex/gpt-5.6-luna
+model: openai-codex/gpt-6-luna
 thinking: medium
 systemPromptMode: replace
 inheritProjectContext: true

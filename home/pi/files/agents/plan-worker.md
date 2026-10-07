@@ -2,7 +2,7 @@
 name: plan-worker
 description: Isolated foreground implementation worker for Plan Execute dispatch attempts
 tools: read, grep, find, ls, bash, edit, write
-model: openai-codex/gpt-5.6-sol
+model: openai-codex/gpt-6.1-sol
 thinking: medium
 systemPromptMode: replace
 inheritProjectContext: true

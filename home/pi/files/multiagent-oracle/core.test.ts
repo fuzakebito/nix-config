@@ -9,7 +9,7 @@ describe("multiagent oracle workflow", () => {
     expect(script).toContain("const independentPromise = runs.all");
     expect(script.indexOf("const lunaResults = await runs.all")).toBeLessThan(script.indexOf("const independentResults = await independentPromise"));
     expect(script.match(/agent: "oracle"/g)?.length).toBeGreaterThanOrEqual(9);
-    expect(script).toContain('model: "openai-codex/gpt-5.6-luna"');
+    expect(script).toContain('model: "openai-codex/gpt-6-luna"');
     expect(script).toContain('model: "openrouter/anthropic/claude-fable-5.1"');
     expect(script).toContain('model: "openrouter/google/gemini-3.8-flash"');
     expect(script).toContain('model: "openrouter/x-ai/grok-4.6"');

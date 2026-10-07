@@ -3,7 +3,7 @@ name: oracle
 description: High-context decision-consistency oracle that protects inherited state and prevents drift
 aliases: advisor
 tools: read, grep, find, ls, bash
-model: openai-codex/gpt-5.6-sol
+model: openai-codex/gpt-6.1-sol
 thinking: max
 systemPromptMode: replace
 inheritProjectContext: true

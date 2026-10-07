@@ -2,7 +2,7 @@
 name: orchestrated-reviewer
 description: Fanout review orchestrator that delegates distinct review angles, synthesizes findings, and returns only the compact final review
 tools: subagent
-model: openai-codex/gpt-5.6-sol
+model: openai-codex/gpt-6.1-sol
 thinking: max
 systemPromptMode: replace
 inheritProjectContext: true

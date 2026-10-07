@@ -1,7 +1,7 @@
 ---
 name: momus
 description: Read-only semantic and contextual reviewer for a Metis-ready canonical plan
-model: openai-codex/gpt-5.6-sol
+model: openai-codex/gpt-6.1-sol
 thinking: high
 tools: read, grep, find, ls
 systemPromptMode: replace

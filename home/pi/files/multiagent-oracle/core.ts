@@ -144,7 +144,7 @@ const lunaResults = await runs.all(perspectives.map(function (perspective) {
   return {
     key: "luna-" + perspective.key,
     agent: "oracle",
-    model: "openai-codex/gpt-5.6-luna",
+    model: "openai-codex/gpt-6-luna",
     thinking: "max",
     context: "fresh",
     task: oracleTask(perspective.title + ": " + perspective.instruction)
@@ -155,7 +155,7 @@ const lunaSynthesis = await runs.run("luna-synthesis", {
   model: "openai-codex/gpt-6-astra",
   thinking: "low",
   context: "fresh",
-  task: workflowTask("Synthesize the GPT-5.6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults))
+  task: workflowTask("Synthesize the GPT-6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults))
 });
 const independentResults = await independentPromise;
 const finalSynthesis = await runs.run("final-synthesis", {
