@@ -8,9 +8,16 @@ describe("multiagent oracle workflow", () => {
     expect(script).toContain('runs.run("perspective-planner"');
     expect(script).toContain("const independentPromise = runs.all");
     expect(script.indexOf("const lunaResults = await runs.all")).toBeLessThan(script.indexOf("const independentResults = await independentPromise"));
-    expect(script.match(/agent: "oracle"/g)?.length).toBeGreaterThanOrEqual(10);
+    expect(script.match(/agent: "oracle"/g)?.length).toBeGreaterThanOrEqual(9);
     expect(script).toContain('model: "openai-codex/gpt-5.6-luna"');
+    expect(script).toContain('model: "openrouter/anthropic/claude-fable-5.1"');
+    expect(script).toContain('model: "openrouter/google/gemini-3.8-flash"');
+    expect(script).toContain('model: "openrouter/x-ai/grok-4.6"');
+    expect(script).toContain('model: "openrouter/meta/muse-spark-1.3"');
     expect(script).toContain('runs.run("luna-synthesis"');
+    expect(script.match(/model: "openai-codex\/gpt-6-astra"/g)?.length).toBe(4);
+    expect(script.match(/thinking: "low"/g)?.length).toBe(2);
+    expect(script).not.toContain('model: "openai-codex/gpt-5.6-sol"');
     expect(script).toContain('runs.run("final-synthesis"');
     expect(script).toContain('resume: planner.runId');
     expect(script).toContain('"perspective-revision-" + revision');

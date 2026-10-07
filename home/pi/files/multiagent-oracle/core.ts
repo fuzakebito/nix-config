@@ -88,17 +88,16 @@ function normalizePerspective(item) {
   return { key: key, title: title, instruction: instruction };
 }
 const independentPromise = runs.all([
-  { key: "oracle-sol", agent: "oracle", model: "openai-codex/gpt-5.6-sol", thinking: "max", context: "fresh", task: oracleTask("first-principles derivation and internal consistency") },
-  { key: "oracle-fable", agent: "oracle", model: "anthropic/claude-fable-5", thinking: "max", context: "fresh", task: oracleTask("intent, ambiguity, human constraints, and reframing") },
-  { key: "oracle-gemini", agent: "oracle", model: "openrouter/google/gemini-3.7-flash", thinking: "high", context: "fresh", task: oracleTask("broad hypothesis search and cross-domain interactions") },
-  { key: "oracle-kimi", agent: "oracle", model: "openrouter/moonshotai/kimi-k3", thinking: "high", context: "fresh", task: oracleTask("causal chains, long-horizon effects, and hidden dependencies") },
+  { key: "oracle-astra", agent: "oracle", model: "openai-codex/gpt-6-astra", thinking: "max", context: "fresh", task: oracleTask("first-principles derivation and internal consistency") },
+  { key: "oracle-fable", agent: "oracle", model: "openrouter/anthropic/claude-fable-5.1", thinking: "max", context: "fresh", task: oracleTask("intent, ambiguity, human constraints, and reframing") },
+  { key: "oracle-gemini", agent: "oracle", model: "openrouter/google/gemini-3.8-flash", thinking: "high", context: "fresh", task: oracleTask("broad hypothesis search and cross-domain interactions") },
   { key: "oracle-grok", agent: "oracle", model: "openrouter/x-ai/grok-4.6", thinking: "high", context: "fresh", task: oracleTask("adversarial challenge, counterexamples, and uncomfortable failure modes") },
-  { key: "oracle-glm", agent: "oracle", model: "openrouter/z-ai/glm-5.3", thinking: "high", context: "fresh", task: oracleTask("alternative decomposition and an independent model-family check") }
+  { key: "oracle-muse", agent: "oracle", model: "openrouter/meta/muse-spark-1.3", thinking: "high", context: "fresh", task: oracleTask("causal chains, long-horizon effects, and hidden dependencies") }
 ]);
 let planner = await runs.run("perspective-planner", {
   agent: "oracle",
-  model: "openai-codex/gpt-5.6-sol",
-  thinking: "max",
+  model: "openai-codex/gpt-6-astra",
+  thinking: "low",
   context: "fresh",
   task: workflowTask("Select 6-8 distinct, task-specific reasoning perspectives for GPT-5.6 Luna oracle calls. Select, adapt, combine, or replace catalog examples; invent a better perspective when the target warrants it. Avoid overlapping generic labels. Each instruction must identify a concrete question or failure class for this target. Use the required structured output only; this task-specific contract overrides the oracle prose format.\\n\\nCatalog:\\n" + catalog.map(function (item) { return "- " + item; }).join("\\n") + "\\n\\nTarget:\\n" + target),
   outputSchema: perspectiveSchema
@@ -153,18 +152,18 @@ const lunaResults = await runs.all(perspectives.map(function (perspective) {
 }));
 const lunaSynthesis = await runs.run("luna-synthesis", {
   agent: "oracle",
-  model: "openai-codex/gpt-5.6-sol",
-  thinking: "max",
+  model: "openai-codex/gpt-6-astra",
+  thinking: "low",
   context: "fresh",
   task: workflowTask("Synthesize the GPT-5.6 Luna oracle results below into one read-only oracle recommendation. Treat convergence as correlated evidence from one model family, not independent votes. Preserve material dissent, identify failed lanes, and return exactly the normal oracle shape. Do not expose orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nLuna results:\\n" + renderResults(lunaResults))
 });
 const independentResults = await independentPromise;
 const finalSynthesis = await runs.run("final-synthesis", {
   agent: "oracle",
-  model: "openai-codex/gpt-5.6-sol",
+  model: "openai-codex/gpt-6-astra",
   thinking: "max",
   context: "fresh",
-  task: workflowTask("Produce the final multi-provider oracle recommendation from the advisory results below. Judge evidence and reasoning rather than vote count. Preserve material dissent and what would resolve it. Treat the Luna synthesis as one correlated OpenAI-family lane; also account for correlation between this synthesizer and oracle-sol. Name failed lanes under Risks and mark validation degraded when any lane failed. Return only the normal oracle shape with no raw transcripts or orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nIndependent oracle results:\\n" + renderResults(independentResults) + "\\n\\nLuna synthesis [" + (lunaSynthesis.ok ? "ok" : "failed") + "]:\\n" + lunaSynthesis.output)
+  task: workflowTask("Produce the final multi-provider oracle recommendation from the advisory results below. Judge evidence and reasoning rather than vote count. Preserve material dissent and what would resolve it. Treat the Luna synthesis as one correlated OpenAI-family lane; also account for correlation between this synthesizer and oracle-astra. Name failed lanes under Risks and mark validation degraded when any lane failed. Return only the normal oracle shape with no raw transcripts or orchestration narration.\\n\\nTarget:\\n" + target + "\\n\\nIndependent oracle results:\\n" + renderResults(independentResults) + "\\n\\nLuna synthesis [" + (lunaSynthesis.ok ? "ok" : "failed") + "]:\\n" + lunaSynthesis.output)
 });
 return finalSynthesis.output;
 `.trim();
