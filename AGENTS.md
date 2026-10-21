@@ -15,7 +15,7 @@ Standalone **home-manager** config for user `fuzakebito`, dual-target: Arch Linu
 ├── flake.nix            # mkHome factory; only outputs are homeConfigurations
 ├── flake.lock
 ├── home/                # all home-manager modules (see home/AGENTS.md)
-├── overlays/default.nix # local overlay: re-exports `arto` from its flake input
+├── overlays/default.nix # local overlay: dsh / rdsh packages and herdr flake export
 ├── scripts/install-paru.sh  # bootstrap paru on a fresh Arch box (only script in this repo)
 ├── secrets.yaml         # sops+age encrypted; only `exa_api_key` is currently consumed
 ├── .sops.yaml           # single age key (fuzakebito)

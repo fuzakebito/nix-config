@@ -4,11 +4,9 @@
   nixConfig = {
     extra-substituters = [
       "https://nix-community.cachix.org"
-      "https://arto.cachix.org"
     ];
     extra-trusted-public-keys = [
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-      "arto.cachix.org-1:yaH0JQomRJTosIcTh2xZPKBEny41D7h6QUePYQzWYqc="
     ];
   };
 
@@ -24,9 +22,6 @@
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-    arto = {
-      url = "github:arto-app/Arto";
     };
     herdr = {
       url = "github:herdrdev/herdr/v0.8.2";
