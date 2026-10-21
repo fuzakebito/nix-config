@@ -9,6 +9,6 @@ nodejs=$(nix build --no-link --print-out-paths --impure --expr "(import $nixpkgs
 prefetch_npm_deps=$(nix build --no-link --print-out-paths --impure --expr "(import $nixpkgs {}).prefetch-npm-deps")
 
 cd home/pi/npm
-"$nodejs/bin/npm" install --package-lock-only --legacy-peer-deps --ignore-scripts
+"$nodejs/bin/npm" update --package-lock-only --legacy-peer-deps --ignore-scripts
 "$prefetch_npm_deps/bin/prefetch-npm-deps" package-lock.json > npm-deps-hash.tmp
 mv npm-deps-hash.tmp npm-deps-hash

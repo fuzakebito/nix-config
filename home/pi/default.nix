@@ -23,6 +23,19 @@ let
     npmDepsHash = lib.strings.trim (builtins.readFile ./npm/npm-deps-hash);
     npmFlags = [ "--legacy-peer-deps" ];
     dontNpmBuild = true;
+
+    # These upstream manifests bundle typebox, but Pi supplies it at runtime.
+    # Keep a peer declaration and remove the copy that can bypass Pi's loader.
+    postInstall = ''
+      nodeModules="$out/lib/node_modules/pi-extension-set/node_modules"
+      for name in @juicesharp/rpiv-ask-user-question @juicesharp/rpiv-todo pi-subagents pi-web-access; do
+        manifest="$nodeModules/$name/package.json"
+        ${pkgs.jq}/bin/jq 'del(.dependencies.typebox) | .peerDependencies.typebox = "*"' \
+          "$manifest" > "$manifest.tmp"
+        mv "$manifest.tmp" "$manifest"
+      done
+      rm -rf "$nodeModules/typebox"
+    '';
   };
 
   extensionRoot = "${extensionSet}/lib/node_modules/pi-extension-set/node_modules";
@@ -47,6 +60,8 @@ let
     defaultThinkingLevel = "medium";
     hideThinkingBlock = false;
     extensions = [
+      # pi-mcp-adapter owns /mcp and reads the shared XDG MCP configuration.
+      "-builtin:mcp"
       "${config.home.homeDirectory}/.pi/agent/plan-execute/index.ts"
       "${config.home.homeDirectory}/.pi/agent/multiagent-oracle/index.ts"
     ];

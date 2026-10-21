@@ -67,6 +67,7 @@
           pkg:
           builtins.elem (nixpkgs.lib.getName pkg) [
             "claude-code"
+            "rtk" # Apache-2.0 / BSL-1.1 since 1.0; explicitly approved.
           ];
       };
       mkHome =

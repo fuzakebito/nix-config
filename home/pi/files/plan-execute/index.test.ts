@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const extensionPath = "./home/pi/files/plan-execute/index.ts";
 
@@ -178,16 +180,22 @@ describe("Plan Execute v2 extension", () => {
   });
 
   test("matches pi-subagents public single-child and wait projection contracts", async () => {
-    const { normalizePublicSubagentExecution } = await import("/home/fuzakebito/.pi/agent/npm/node_modules/pi-subagents/src/extension/public-execution.ts");
-    const { toWaitCompletion } = await import("/home/fuzakebito/.pi/agent/npm/node_modules/pi-subagents/src/runs/background/wait-completions.ts");
+    const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent");
+    const settings = await Bun.file(join(agentDir, "settings.json")).json();
+    const packageRoot = process.env.PI_SUBAGENTS_ROOT ?? settings.packages.find(
+      (source: unknown) => typeof source === "string" && source.endsWith("/pi-subagents"),
+    );
+    expect(packageRoot).toBeString();
+    const { normalizePublicSubagentExecution } = await import(`${packageRoot}/src/extension/public-execution.js`);
+    const { toWaitCompletion } = await import(`${packageRoot}/src/runs/background/wait-completions.js`);
     const normalized = normalizePublicSubagentExecution({ agent: "plan-worker", task: "implement", async: false, foregroundOnly: true, output: false, outputSchema: { type: "object" } });
     expect(normalized.ok).toBe(true);
     if (!normalized.ok) return;
     expect(normalized.params.async).toBe(false);
     expect(normalized.params.foregroundOnly).toBe(true);
-    expect(normalized.params.workflowScript).toContain('"output":false');
+    expect(normalized.params).toMatchObject({ output: false, outputSchema: { type: "object" } });
     const completion = toWaitCompletion({ agent: "workflow", success: true, results: [{ agent: "plan-worker", runId: "child", success: true, structuredOutput: { ok: true } }] }, "root");
-    expect(completion.results?.[0]).not.toHaveProperty("structuredOutput");
+    expect(completion.results?.[0]).toMatchObject({ structuredOutput: { ok: true } });
   });
 
   test("loads in the configured Pi runtime environment", async () => {
