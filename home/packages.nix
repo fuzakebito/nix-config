@@ -30,6 +30,8 @@
     mise
     efm-langserver
     claude-code
+    dsh # DeepSeek Harness
+    rdsh # Rust launcher for dsh
     rtk # CLI proxy that compresses command output for LLMs (opencode plugin: home/opencode/)
 
     # Benchmarking
