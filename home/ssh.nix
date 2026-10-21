@@ -1,7 +1,7 @@
 { config, ... }:
 
 {
-  # ~/.ssh/config — generated from matchBlocks below.
+  # ~/.ssh/config — generated from settings below.
   # ProxyCommand uses bare `cloudflared` (PATH lookup, DECISION-1):
   # cloudflared is system-provided on both Arch (/usr/bin) and NixOS
   # (/run/current-system/sw/bin); hardcoding /usr/bin breaks NixOS.
@@ -12,25 +12,25 @@
     # controlMaster, forwardAgent, ...) to preserve that exact behavior
     # and silence the deprecation warning.
     enableDefaultConfig = false;
-    matchBlocks = {
+    settings = {
       "github github.com" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/id_rsa";
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/id_rsa";
       };
       "rpi rpi.n0a.org" = {
-        hostname = "rpi.n0a.org";
-        user = "pi";
+        HostName = "rpi.n0a.org";
+        User = "pi";
       };
       "yoneken yoneken.fuzake.io" = {
-        hostname = "yoneken.fuzake.io";
-        user = "administrator";
-        proxyCommand = "cloudflared access ssh --hostname %h";
+        HostName = "yoneken.fuzake.io";
+        User = "administrator";
+        ProxyCommand = "cloudflared access ssh --hostname %h";
       };
       "sun ssh.fuzakebito.com" = {
-        hostname = "ssh.fuzakebito.com";
-        user = "fuzakebito";
-        proxyCommand = "cloudflared access ssh --hostname %h";
+        HostName = "ssh.fuzakebito.com";
+        User = "fuzakebito";
+        ProxyCommand = "cloudflared access ssh --hostname %h";
       };
     };
   };

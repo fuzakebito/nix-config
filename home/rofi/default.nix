@@ -6,12 +6,12 @@
   # on both platforms (Q3b: the Arch pacman rofi will be removed in T16).
   programs.rofi = {
     enable = true;
-    font = "Jost* Light 15";
-    terminal = "env WINIT_UNIX_BACKEND=x11 alacritty";
     # theme = path → HM places the file at ~/.local/share/rofi/themes/
     # and emits `@theme "Black-Simplicity"` into ~/.config/rofi/config.rasi.
     theme = ./files/Black-Simplicity.rasi;
-    extraConfig = {
+    settings = {
+      font = "Jost* Light 15";
+      terminal = "env WINIT_UNIX_BACKEND=x11 alacritty";
       modi = "combi,drun,run,window,ssh";
       combi-modi = "window,drun,run";
       show-icons = true;
